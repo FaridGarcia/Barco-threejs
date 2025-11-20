@@ -1,0 +1,601 @@
+import * as THREE from 'three';
+import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { Water } from 'three/examples/jsm/objects/Water.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+const bubbleInfo = [
+  { title: "Dimensiones", data: [ { subtitle: "Longitud", value: "120 m" }, { subtitle: "Manga", value: "18 m" }, { subtitle: "Calado", value: "5 m" }, { subtitle: "Desplazamiento", value: "3,500 toneladas" } ] },
+  { title: "Rendimiento", data: [ { subtitle: "Velocidad Máxima", value: "25 nudos" }, { subtitle: "Velocidad de Crucero", value: "20 nudos" }, { subtitle: "Autonomía", value: "5,000 millas náuticas" } ] },
+  { title: "Capacidades", data: [ { subtitle: "Tripulación", value: "20" }, { subtitle: "Pasajeros", value: "50" }, { subtitle: "Capacidad de Carga", value: "500 toneladas" } ] },
+  { title: "Propulsión", data: [ { subtitle: "Motores Principales", value: "2 x Motores Diésel" }, { subtitle: "Hélices", value: "2 x Hélices de Paso Controlable" } ] },
+  { title: "Sistema Eléctrico", data: [ { subtitle: "Generadores", value: "2 x Generadores Diésel" }, { subtitle: "Suministro de energía", value: "440V /60Hz" } ] },
+  { title: "Navegación y Comunicación", data: [ { subtitle: "Radar", value: "Sistema de Radar Avanzado" }, { subtitle: "GPS", value: "Sistema GPS Dual" }, { subtitle: "Sistemas de comunicación", value: "Comunicación Satelital" } ] }
+];
+
+// Escena, cámara, renderer
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 10000);
+camera.position.set(0, 60, 200);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Luces
+const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+directionalLight.position.set(5, 10, 7.5);
+scene.add(directionalLight);
+
+// Cielo
+const sky = new Sky();
+sky.scale.setScalar(10000);
+scene.add(sky);
+
+const sun = new THREE.Vector3();
+const effectController = {
+  turbidity: 10,
+  rayleigh: 2,
+  mieCoefficient: 0.005,
+  mieDirectionalG: 0.8,
+  elevation: 5,
+  azimuth: 180,
+  exposure: renderer.toneMappingExposure
+};
+
+function updateSun() {
+  const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
+  const theta = THREE.MathUtils.degToRad(effectController.azimuth);
+  sun.setFromSphericalCoords(1, phi, theta);
+  sky.material.uniforms['sunPosition'].value.copy(sun);
+}
+updateSun();
+
+// Agua 
+const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
+const water = new Water(waterGeometry, {
+  textureWidth: 1024,
+  textureHeight: 1024,
+  waterNormals: new THREE.TextureLoader().load(
+    'https://threejs.org/examples/textures/waternormals.jpg',
+    texture => {
+      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    }
+  ),
+  sunDirection: new THREE.Vector3(),
+  sunColor: 0xffffff,
+  waterColor: 0x0077be,
+  distortionScale: 10.0,
+  size: 50.0,
+  alpha: 0.9,
+  fog: scene.fog !== undefined
+});
+water.rotation.x = -Math.PI / 2;
+scene.add(water);
+
+// Variables globales
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let offset = new THREE.Vector3();
+
+let boat = null;    
+let boatContainer = null;
+let boatVisual = null; 
+let boatHitbox = null;
+let lastBoatPosition = new THREE.Vector3();
+let isDragging = false;
+
+// movimiento / cámara / modos
+let targetBoatPos = null;
+let targetCameraPos = null;
+let cinematicMode = false;
+let inDetailsMode = false;
+
+// Burbujas
+let bubbles = [];
+
+function getMouseNDC(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    y: -((event.clientY - rect.top) / rect.height) * 2 + 1
+  };
+}
+
+// Bote
+const loader = new GLTFLoader();
+loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
+  // crear container que representará la "física"
+  boatContainer = new THREE.Object3D();
+  boatContainer.name = "boatContainer";
+  boatVisual = gltfScene.scene;
+  boatVisual.name = "boatVisual";
+  boatVisual.traverse((child) => {
+    if (child.isMesh) {
+      console.log(child.material);
+    }
+  });
+  boatVisual.scale.set(1, 1, 1);
+  boatVisual.position.set(0, 0.5, 0);
+
+  // HITBOX
+  const hitboxSize = new THREE.Vector3(40, 40, 200); // tus valores originales
+  const hitboxGeometry = new THREE.BoxGeometry(hitboxSize.x, hitboxSize.y, hitboxSize.z);
+  const hitboxMaterial = new THREE.MeshBasicMaterial({
+    color: 0x00ff00,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.5
+  });
+  boatHitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+  boatHitbox.name = "boatHitbox";
+  boatHitbox.visible = false;
+
+  boatHitbox.position.set(-3, hitboxSize.y / 2 - 5, 0);
+
+  boatContainer.add(boatHitbox);
+  boatContainer.add(boatVisual);
+
+  boatContainer.position.set(0, 0.5, 0);
+
+  boat = boatContainer;
+  lastBoatPosition.copy(boat.position);
+
+  scene.add(boatContainer);
+
+}, undefined, function (error) {
+  console.error('Error al cargar el modelo:', error);
+});
+
+
+// Interacciones: pointerdown / move / up
+// - El raycast para arrastrar se hace contra el modelo visual para facilidad
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  if (cinematicMode) return;
+  if (event.button !== undefined && event.button !== 0) return;
+
+  const ndc = getMouseNDC(event);
+  mouse.x = ndc.x; mouse.y = ndc.y;
+  raycaster.setFromCamera(mouse, camera);
+
+  if (!boatVisual) return;
+  const intersects = raycaster.intersectObject(boatVisual, true);
+  if (intersects.length > 0) {
+    isDragging = true;
+    offset.copy(intersects[0].point).sub(boat.position);
+
+    try { renderer.domElement.setPointerCapture(event.pointerId); } catch (e) {}
+  }
+});
+
+renderer.domElement.addEventListener('pointermove', (event) => {
+  if (cinematicMode || !isDragging) return;
+
+  const ndc = getMouseNDC(event);
+  mouse.x = ndc.x; mouse.y = ndc.y;
+  raycaster.setFromCamera(mouse, camera);
+
+  const intersects = raycaster.intersectObject(water);
+  if (intersects.length > 0 && boat) {
+    const point = intersects[0].point.clone();
+    point.sub(offset);
+    point.y = 2;
+    boat.position.copy(point);
+
+    // rotación suave del container
+    const direction = new THREE.Vector3().subVectors(boat.position, lastBoatPosition);
+    if (direction.length() > 0.001) {
+      const targetRotation = Math.atan2(direction.x, direction.z);
+      let delta = targetRotation - boat.rotation.y;
+      delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+      const rotationSpeed = 0.05 + Math.abs(delta) * 0.1;
+      boat.rotation.y += delta * rotationSpeed;
+    }
+
+    // limitar posición si estás en modo detalles
+    if (inDetailsMode) {
+      const limitX = 170;
+      const limitZ = 100;
+      boat.position.x = THREE.MathUtils.clamp(boat.position.x, -limitX, limitX);
+      boat.position.z = THREE.MathUtils.clamp(boat.position.z, -limitZ, limitZ);
+    }
+
+    lastBoatPosition.copy(boat.position);
+  }
+});
+
+renderer.domElement.addEventListener('pointerup', (event) => {
+  if (isDragging) {
+    isDragging = false;
+    try { renderer.domElement.releasePointerCapture(event.pointerId); } catch (e) {}
+  }
+});
+
+renderer.domElement.addEventListener('pointercancel', () => { isDragging = false; });
+
+// Botón Detalles 
+const detailsBtn = document.getElementById('detailsBtn');
+detailsBtn.addEventListener('click', () => {
+  if (!boat || cinematicMode) return;
+
+  const DETAILS_CAMERA_POS = new THREE.Vector3(0, 200, 0);
+  const DEFAULT_CAMERA_POS = new THREE.Vector3(0, 60, 200);
+  const CENTER_BOAT_POS = new THREE.Vector3(0, 2, 0);
+
+  if (!inDetailsMode) {
+    targetBoatPos = CENTER_BOAT_POS.clone();
+    targetCameraPos = DETAILS_CAMERA_POS.clone();
+    cinematicMode = true;
+    isDragging = false;
+    inDetailsMode = true;
+    detailsBtn.textContent = 'Volver';
+    if (boat.userData && boat.userData.velocity) boat.userData.velocity.set(0,0,0);
+  } else {
+    cinematicMode = true;
+    targetCameraPos = DEFAULT_CAMERA_POS.clone();
+    targetBoatPos = null;
+    inDetailsMode = false;
+    detailsBtn.textContent = 'Detalles';
+
+    // limpiar burbujas
+    bubbles.forEach(b => {
+      if (b.userData && b.userData.sprite) scene.remove(b.userData.sprite);
+      if (b.geometry) b.geometry.dispose();
+      if (b.material) b.material.dispose();
+      scene.remove(b);
+    });
+    bubbles.length = 0;
+  }
+});
+
+// Burbujas 
+function spawnBubbles() {
+  // limpiar
+  bubbles.forEach(b => {
+    if (b.userData && b.userData.sprite) scene.remove(b.userData.sprite);
+    scene.remove(b);
+  });
+  bubbles = [];
+
+  const bubbleCount = 6;
+  const bubbleRadius = 20;
+  const minDistance = bubbleRadius * 2.5;
+  const minDistanceFromBoat = bubbleRadius * 3;
+
+  const videoPaths = [
+    'videos/dimensiones.webm',
+    'videos/rendimiento.webm',
+    'videos/capacidades.webm',
+    'videos/propulsion.webm',
+    'videos/sistema.webm',
+    'videos/navegacion.webm'
+  ].map(path => `${path}?v=${Date.now()}`);
+
+  const buttonHeight = 100;
+
+  for (let i = 0; i < bubbleCount; i++) {
+    let valid = false;
+    let attempts = 0;
+    let bubble;
+
+    while (!valid && attempts < 500) {
+      attempts++;
+      const geometry = new THREE.SphereGeometry(bubbleRadius, 32, 32);
+      const material = new THREE.MeshPhysicalMaterial({
+        color: 0xBE0077,
+        transparent: true,
+        opacity: 0.3,
+        roughness: 0.05,
+        metalness: 0.2,
+        transmission: 1.0,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.05
+      });
+
+      bubble = new THREE.Mesh(geometry, material);
+
+      const x = (Math.random() - 0.5) * 250;
+      const z = (Math.random() - 0.5) * 150;
+      const y = 20 + Math.random() * 10;
+      bubble.position.set(x, y, z);
+
+      let tooClose = false;
+      for (const existing of bubbles) {
+        if (bubble.position.distanceTo(existing.position) < minDistance) { tooClose = true; break; }
+      }
+      if (boat && bubble.position.distanceTo(boat.position) < minDistanceFromBoat) tooClose = true;
+      const projected = bubble.position.clone().project(camera);
+      const screenY = (1 - projected.y) * 0.5 * window.innerHeight;
+      if (screenY > window.innerHeight - buttonHeight) tooClose = true;
+
+      if (!tooClose) valid = true;
+    }
+
+    if (valid && bubble) {
+      const video = document.createElement('video');
+      video.src = videoPaths[i];
+      video.loop = true; video.muted = true; video.play();
+
+      const videoTexture = new THREE.VideoTexture(video);
+      videoTexture.minFilter = THREE.LinearFilter;
+      videoTexture.magFilter = THREE.LinearFilter;
+      videoTexture.format = THREE.RGBAFormat;
+
+      const spriteMaterial = new THREE.SpriteMaterial({
+        map: videoTexture,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false
+      });
+
+      const sprite = new THREE.Sprite(spriteMaterial);
+      sprite.scale.set(bubbleRadius * 1.5, bubbleRadius * 1.5, 1);
+      sprite.position.set(0, 0, 0.1);
+      bubble.add(sprite);
+
+      bubble.userData.sprite = sprite;
+      bubble.userData.info = bubbleInfo[i];
+
+      bubble.scale.set(0.01, 0.01, 0.01);
+      bubbles.push(bubble);
+      scene.add(bubble);
+
+      const targetScale = bubbleRadius / 25;
+      const growSpeed = 0.02 + Math.random() * 0.01;
+      bubble.userData.growing = { progress: 0, speed: growSpeed, target: targetScale };
+    }
+  }
+}
+
+// Info panel 
+const infoPanel = document.getElementById('infoPanel');
+const infoTitle = document.getElementById('infoTitle');
+const infoText = document.getElementById('infoText');
+const closePanelBtn = document.getElementById('closePanelBtn');
+
+let typingController = { cancel: false };
+function stopTyping() { typingController.cancel = true; }
+
+async function typeLinesIntoContainer(container, lines, charSpeed = 18, lineDelay = 220) {
+  stopTyping();
+  typingController = { cancel: false };
+  container.innerHTML = "";
+  for (const line of lines) {
+    if (typingController.cancel) break;
+    const p = document.createElement("p");
+    container.appendChild(p);
+    for (let i = 0; i <= line.length; i++) {
+      if (typingController.cancel) break;
+      p.textContent = line.slice(0, i);
+      await new Promise(res => setTimeout(res, charSpeed));
+    }
+    await new Promise(res => setTimeout(res, lineDelay));
+  }
+}
+
+function onBubbleClick(bubble, index) {
+  const info = bubbleInfo[index];
+  if (!info) return;
+  stopTyping();
+  infoTitle.textContent = info.title;
+  const lines = info.data.map(item => `${item.subtitle}: ${item.value}`);
+  infoPanel.classList.add('visible');
+  typeLinesIntoContainer(infoText, lines, 16, 220);
+}
+
+closePanelBtn.addEventListener('click', (e) => { e.stopPropagation(); stopTyping(); infoPanel.classList.remove('visible'); });
+detailsBtn.addEventListener('click', () => {
+  if (infoPanel.classList.contains('visible')) {
+    stopTyping();
+    infoPanel.classList.remove('visible');
+    detailsBtn.textContent = 'Detalles';
+  }
+});
+
+// click sobre burbujas
+renderer.domElement.addEventListener('click', (event) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(bubbles, true);
+  if (intersects.length > 0) {
+    let clicked = intersects[0].object;
+    while (clicked && !bubbles.includes(clicked)) clicked = clicked.parent;
+    const index = bubbles.indexOf(clicked);
+    if (index >= 0) onBubbleClick(clicked, index);
+  }
+});
+
+
+
+// Animación principal
+function animate() {
+  requestAnimationFrame(animate);
+
+  const deltaTime = 1.0 / 60.0;
+
+  // Animar agua
+  if (water.material.uniforms && water.material.uniforms['time']) {
+    water.material.uniforms['time'].value += deltaTime;
+  }
+  
+
+  // mover bote hacia el centro
+  if (boat && targetBoatPos) {
+    boat.position.lerp(targetBoatPos, 0.05);
+    if (boat.position.distanceTo(targetBoatPos) < 0.05) {
+      boat.position.copy(targetBoatPos);
+      targetBoatPos = null;
+    }
+  }
+
+  // mover cámara
+  if (targetCameraPos) {
+    camera.position.lerp(targetCameraPos, 0.06);
+    camera.lookAt(0, 0, 0);
+    if (camera.position.distanceTo(targetCameraPos) < 0.5) {
+      targetCameraPos = null;
+      if (cinematicMode) {
+        if (inDetailsMode) {
+          // FORZAMOS la posición del container al centro una única vez cuando entras en detalles
+          if (boat) {
+            boat.position.set(0, 2, 0);
+            if (!boat.userData) boat.userData = {};
+            if (boat.userData.velocity) boat.userData.velocity.set(0,0,0);
+            lastBoatPosition.copy(boat.position);
+          }
+          spawnBubbles();
+        } else {
+          camera.lookAt(0, 0, 0);
+        }
+        cinematicMode = false;
+      }
+    }
+  }
+
+  // Animación de aparición y flotación de las burbujas
+  bubbles.forEach(bubble => {
+    const grow = bubble.userData.growing;
+    if (grow && grow.progress < 1) {
+      grow.progress += grow.speed;
+      const s = THREE.MathUtils.lerp(0.01, grow.target, grow.progress);
+      bubble.scale.set(s, s, s);
+      if (grow.progress >= 1) delete bubble.userData.growing;
+    }
+  });
+
+  // === Empuje físico con HITBOX ===
+  if (boat && boatHitbox) {
+    // calculamos velocidad del container (sin animación)
+    const boatVel = new THREE.Vector3().subVectors(boat.position, lastBoatPosition);
+    const boatSpeed = boatVel.length();
+
+    const boatBox = new THREE.Box3().setFromObject(boatHitbox);
+
+    bubbles.forEach((bubble, i) => {
+      // caja aproximada de la burbuja
+      const bubbleBox = new THREE.Box3().setFromCenterAndSize(
+        bubble.position.clone(),
+        new THREE.Vector3(bubble.scale.x * 25, bubble.scale.y * 25, bubble.scale.z * 25)
+      );
+
+      if (boatBox.intersectsBox(bubbleBox)) {
+        // Empuje dirigido por la posición relativa a la caja/container
+        const pushDir = new THREE.Vector3().subVectors(bubble.position, boat.position).normalize();
+        pushDir.y = 0;
+
+        // fuerza basada en la velocidad del container (no en la animación)
+        const pushStrength = THREE.MathUtils.clamp(boatSpeed * 180, 3, 100);
+
+        if (!bubble.userData.velocity) bubble.userData.velocity = new THREE.Vector3();
+        bubble.userData.velocity.addScaledVector(pushDir, pushStrength);
+      }
+
+      // inicializar velocidad si es necesario
+      if (!bubble.userData.velocity) bubble.userData.velocity = new THREE.Vector3();
+
+      // colisiones entre burbujas
+      for (let j = i + 1; j < bubbles.length; j++) {
+        const other = bubbles[j];
+        const diff = new THREE.Vector3().subVectors(bubble.position, other.position);
+        const dist = diff.length();
+        const minDist = 25 * bubble.scale.x + 25 * other.scale.x;
+
+        if (dist < minDist && dist > 0) {
+          diff.normalize();
+          const overlap = (minDist - dist) * 0.5;
+          bubble.position.addScaledVector(diff, overlap);
+          other.position.addScaledVector(diff, -overlap);
+
+          const impulse = diff.multiplyScalar(0.4);
+          bubble.userData.velocity.add(impulse);
+          other.userData.velocity.sub(impulse);
+        }
+      }
+
+      // fricción y movimiento
+      bubble.userData.velocity.multiplyScalar(0.92);
+      bubble.position.x += bubble.userData.velocity.x * 0.12;
+      bubble.position.z += bubble.userData.velocity.z * 0.12;
+
+      // límites laterales
+      const limitX = 125;
+      const limitZ = 75;
+      if (bubble.position.x > limitX) { bubble.position.x = limitX; bubble.userData.velocity.x *= -0.7; }
+      else if (bubble.position.x < -limitX) { bubble.position.x = -limitX; bubble.userData.velocity.x *= -0.7; }
+      if (bubble.position.z > limitZ) { bubble.position.z = limitZ; bubble.userData.velocity.z *= -0.7; }
+      else if (bubble.position.z < -limitZ) { bubble.position.z = -limitZ; bubble.userData.velocity.z *= -0.7; }
+
+      // oscilación vertical 
+      if (!bubble.userData.baseY) bubble.userData.baseY = bubble.position.y;
+      const t = performance.now() * 0.001 + bubble.position.x * 0.03;
+      bubble.position.y = bubble.userData.baseY + Math.sin(t * 2) * 4;
+    });
+
+    lastBoatPosition.copy(boat.position);
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+
+// Mapa con destellos (HUD superior) 
+const mapCanvas = document.getElementById('mapCanvas');
+const mapCtx = mapCanvas.getContext('2d');
+let mapDots = [];
+
+function resizeCanvas(canvas) { canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight; }
+resizeCanvas(mapCanvas);
+
+for (let i = 0; i < 30; i++) {
+  mapDots.push({ x: Math.random() * mapCanvas.width, y: Math.random() * mapCanvas.height, size: Math.random() * 2 + 1, alpha: Math.random(), speed: 0.005 + Math.random() * 0.01 });
+}
+
+function animateMap() {
+  mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+  mapCtx.strokeStyle = "#00ffff26";
+  mapCtx.lineWidth = 1;
+  for (let x = 0; x < mapCanvas.width; x += 40) {
+    mapCtx.beginPath(); mapCtx.moveTo(x, 0); mapCtx.lineTo(x, mapCanvas.height); mapCtx.stroke();
+  }
+  for (let y = 0; y < mapCanvas.height; y += 40) {
+    mapCtx.beginPath(); mapCtx.moveTo(0, y); mapCtx.lineTo(mapCanvas.width, y); mapCtx.stroke();
+  }
+  mapDots.forEach(dot => {
+    dot.alpha += dot.speed;
+    if (dot.alpha > 1 || dot.alpha < 0) dot.speed *= -1;
+    mapCtx.beginPath(); mapCtx.arc(dot.x, dot.y, dot.size, 0, Math.PI * 2);
+    mapCtx.fillStyle = `rgba(0,255,255,${dot.alpha})`; mapCtx.fill();
+  });
+  requestAnimationFrame(animateMap);
+}
+animateMap();
+
+// HUD inferior (radar lines) 
+const hudCanvas = document.getElementById('hudCanvas');
+const hudCtx = hudCanvas.getContext('2d');
+resizeCanvas(hudCanvas);
+let hudTime = 0;
+
+function animateHUD() {
+  hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+  hudTime += 0.02;
+  for (let i = 0; i < 10; i++) {
+    const y = hudCanvas.height / 2 + Math.sin(hudTime + i) * 20;
+    hudCtx.beginPath();
+    hudCtx.moveTo(0, y);
+    hudCtx.lineTo(hudCanvas.width, y);
+    hudCtx.strokeStyle = `rgba(0,255,255,${0.2 + 0.1 * Math.sin(hudTime + i)})`;
+    hudCtx.lineWidth = 1;
+    hudCtx.stroke();
+  }
+  requestAnimationFrame(animateHUD);
+}
+animateHUD();
