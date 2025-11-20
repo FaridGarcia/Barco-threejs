@@ -108,7 +108,7 @@ function getMouseNDC(event) {
 
 // Bote
 const loader = new GLTFLoader();
-loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
+loader.load('public/models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
   // crear container que representará la "física"
   boatContainer = new THREE.Object3D();
   boatContainer.name = "boatContainer";
