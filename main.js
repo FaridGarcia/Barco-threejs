@@ -23,6 +23,51 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// --- Audio ---
+const listener = new THREE.AudioListener();
+camera.add(listener);
+
+const audioLoader = new THREE.AudioLoader();
+
+// Sonidos
+const oceanSound = new THREE.Audio(listener);
+const boatSound = new THREE.Audio(listener);
+const openSound = new THREE.Audio(listener);
+const closeSound = new THREE.Audio(listener);
+
+
+audioLoader.load('sounds/ocean.mp3', buffer => {
+  oceanSound.setBuffer(buffer);
+  oceanSound.setLoop(true);
+  oceanSound.setVolume(0.4);
+});
+
+audioLoader.load('sounds/boat.mp3', buffer => {
+  boatSound.setBuffer(buffer);
+  boatSound.setLoop(true);
+  boatSound.setVolume(0.7);
+});
+
+audioLoader.load('sounds/open.mp3', buffer => {
+  openSound.setBuffer(buffer);
+  openSound.setLoop(false);
+  openSound.setVolume(1.0);
+});
+
+audioLoader.load('sounds/close.mp3', buffer => {
+  closeSound.setBuffer(buffer);
+  closeSound.setLoop(false);
+  closeSound.setVolume(1.0);
+});
+
+let audioStarted = false;
+renderer.domElement.addEventListener("click", () => {
+  if (!audioStarted) {
+    audioStarted = true;
+    if (oceanSound.buffer) oceanSound.play();
+  }
+});
+
 // Luces
 const ambientLight = new THREE.AmbientLight(0xffffff, 1);
 scene.add(ambientLight);
@@ -42,8 +87,8 @@ const effectController = {
   rayleigh: 2,
   mieCoefficient: 0.005,
   mieDirectionalG: 0.8,
-  elevation: 5,
-  azimuth: 180,
+  elevation: 895,
+  azimuth: 200,
   exposure: renderer.toneMappingExposure
 };
 
@@ -68,7 +113,7 @@ const water = new Water(waterGeometry, {
   ),
   sunDirection: new THREE.Vector3(),
   sunColor: 0xffffff,
-  waterColor: 0x0077be,
+  waterColor: 0x000914,
   distortionScale: 10.0,
   size: 50.0,
   alpha: 0.9,
@@ -109,7 +154,6 @@ function getMouseNDC(event) {
 // Bote
 const loader = new GLTFLoader();
 loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
-  // crear container que representará la "física"
   boatContainer = new THREE.Object3D();
   boatContainer.name = "boatContainer";
   boatVisual = gltfScene.scene;
@@ -119,7 +163,7 @@ loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
       console.log(child.material);
     }
   });
-  boatVisual.scale.set(1, 1, 1);
+  boatVisual.scale.set(1.1, 1.1, 1.1);
   boatVisual.position.set(0, 0.5, 0);
 
   // HITBOX
@@ -152,8 +196,101 @@ loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
 });
 
 
+// === ESTELA DETRÁS DEL BARCO ===
+const backFoamPlanes = [];
+const backFoamPerLine = 25; // numero de manchas por línea
+const backFoamLines = 5;  // 5 generadores de espuma
+
+const foamTexture = new THREE.TextureLoader().load("public/textures/foam.png");
+
+const backLateralOffsets = [-20,-12, -4, 4, 12];  // izquierda - centro - derecha
+
+for (let line = 0; line < backFoamLines; line++) {
+  for (let i = 0; i < backFoamPerLine; i++) {
+
+    const material = new THREE.MeshBasicMaterial({
+      map: foamTexture,
+      transparent: true,
+      opacity: 0.1,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const geometry = new THREE.PlaneGeometry(3, 3); // tamaño espuma
+    const plane = new THREE.Mesh(geometry, material);
+    plane.rotation.x = -Math.PI / 2;
+    scene.add(plane);
+
+    backFoamPlanes.push({
+      mesh: plane,
+      life: Math.random() * 1.5,
+      maxLife: 1 + Math.random(),
+      delay: Math.random() * 0.5,
+      lineOffset: backLateralOffsets[line]
+    });
+  }
+}
+
+
+// === ESPUMA FRONTAL ===
+const frontFoamLeftPlanes = [];
+const frontFoamRightPlanes = [];
+const frontFoamPerLine = 25;
+const frontFoamTexture = foamTexture;
+let frontGeneratorOffsetLeft = -6;
+let frontGeneratorOffsetRight = -6;
+
+// CREAR ESPUMA IZQUIERDA
+for (let i = 0; i < frontFoamPerLine; i++) {
+    const material = new THREE.MeshBasicMaterial({
+        map: frontFoamTexture,
+        transparent: true,
+        opacity: 0.1,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+    });
+
+    const geometry = new THREE.PlaneGeometry(3, 3);
+    const plane = new THREE.Mesh(geometry, material);
+    plane.rotation.x = -Math.PI / 2;
+    scene.add(plane);
+
+    frontFoamLeftPlanes.push({
+        mesh: plane,
+        life: Math.random() * 1.5,
+        maxLife: 1 + Math.random(),
+        delay: Math.random() * 0.5,
+        lineOffset: frontGeneratorOffsetLeft
+    });
+}
+
+// CREAR ESPUMA DERECHA
+for (let i = 0; i < frontFoamPerLine; i++) {
+    const material = new THREE.MeshBasicMaterial({
+        map: frontFoamTexture,
+        transparent: true,
+        opacity: 0.1,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+    });
+
+    const geometry = new THREE.PlaneGeometry(3, 3);
+    const plane = new THREE.Mesh(geometry, material);
+    plane.rotation.x = -Math.PI / 2;
+    scene.add(plane);
+
+    frontFoamRightPlanes.push({
+        mesh: plane,
+        life: Math.random() * 1.5,
+        maxLife: 1 + Math.random(),
+        delay: Math.random() * 0.5,
+        lineOffset: frontGeneratorOffsetRight
+    });
+}
+
+
 // Interacciones: pointerdown / move / up
-// - El raycast para arrastrar se hace contra el modelo visual para facilidad
+// El raycast para arrastrar se hace contra el modelo visual para facilidad
 renderer.domElement.addEventListener('pointerdown', (event) => {
   if (cinematicMode) return;
   if (event.button !== undefined && event.button !== 0) return;
@@ -169,6 +306,10 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
     offset.copy(intersects[0].point).sub(boat.position);
 
     try { renderer.domElement.setPointerCapture(event.pointerId); } catch (e) {}
+
+    if (boatSound.buffer && !boatSound.isPlaying) {
+      boatSound.play();
+    }
   }
 });
 
@@ -212,6 +353,7 @@ renderer.domElement.addEventListener('pointerup', (event) => {
   if (isDragging) {
     isDragging = false;
     try { renderer.domElement.releasePointerCapture(event.pointerId); } catch (e) {}
+    if (boatSound.isPlaying) boatSound.stop();
   }
 });
 
@@ -385,9 +527,16 @@ function onBubbleClick(bubble, index) {
   const lines = info.data.map(item => `${item.subtitle}: ${item.value}`);
   infoPanel.classList.add('visible');
   typeLinesIntoContainer(infoText, lines, 16, 220);
+
+  if (openSound.buffer) openSound.play();
 }
 
-closePanelBtn.addEventListener('click', (e) => { e.stopPropagation(); stopTyping(); infoPanel.classList.remove('visible'); });
+closePanelBtn.addEventListener('click', (e) => {
+   e.stopPropagation(); 
+   stopTyping(); 
+   infoPanel.classList.remove('visible'); 
+   if (closeSound.buffer) closeSound.play();
+  });
 detailsBtn.addEventListener('click', () => {
   if (infoPanel.classList.contains('visible')) {
     stopTyping();
@@ -411,6 +560,123 @@ renderer.domElement.addEventListener('click', (event) => {
   }
 });
 
+// Desplazamiento espuma trasera
+function updateBackFoam(delta) {
+  if (!boat) return;
+
+  backFoamPlanes.forEach(w => {
+    w.life -= delta;
+
+    if (w.life <= 0) {
+      w.life = w.maxLife;
+
+      // offset base detrás del barco
+      w.offset = new THREE.Vector3(w.lineOffset, 0.2, -110);
+      const sideFactor = w.lineOffset * 0.1;
+      w.offset.x += sideFactor;
+
+      w.mesh.scale.set(0.2, 0.2, 0.2);
+      w.mesh.material.opacity = 0.5;
+      w.mesh.visible = true;
+    }
+
+    if (w.offset) {
+      const p = w.offset.clone();
+      p.applyAxisAngle(new THREE.Vector3(0,1,0), boat.rotation.y);
+      p.add(boat.position);
+      w.mesh.position.copy(p);
+    }
+
+    const t = w.life / w.maxLife;
+
+    const size = THREE.MathUtils.lerp(2, 30, 1 - t);
+    w.mesh.scale.set(size, size, size);
+
+    w.mesh.material.opacity = t * 0.5;
+
+    if (w.offset) {
+      w.offset.z -= 0.4 * delta * 100;
+    }
+  });
+}
+
+
+// Desplazamiento espuma delantera
+function updateFrontFoamLeft(delta) {
+    if (!boat) return;
+
+    frontFoamLeftPlanes.forEach(w => {
+        w.life -= delta;
+
+        if (w.life <= 0) {
+            w.life = w.maxLife;
+            w.offset = new THREE.Vector3(w.lineOffset, 0.2, 100);
+
+            w.mesh.scale.set(3, 3, 3);
+            w.mesh.material.opacity = 0.5;
+            w.mesh.visible = true;
+        }
+
+        if (w.offset) {
+            const p = w.offset.clone();
+            p.applyAxisAngle(new THREE.Vector3(0, 1, 0), boat.rotation.y);
+            p.add(boat.position);
+            w.mesh.position.copy(p);
+        }
+
+        const t = w.life / w.maxLife;
+        const size = THREE.MathUtils.lerp(2, 30, 1 - t);
+        w.mesh.scale.set(size, size, size);
+        w.mesh.material.opacity = t * 0.5;
+
+        // movimiento hacia atrás
+        if (w.offset) {
+            w.offset.z -= 0.4 * delta * 100;
+
+            // movimiento lateral hacia la IZQUIERDA
+            const lateralSpeed = 0.3;
+            w.offset.x -= lateralSpeed * delta * 60;
+        }
+    });
+}
+
+function updateFrontFoamRight(delta) {
+    if (!boat) return;
+
+    frontFoamRightPlanes.forEach(w => {
+        w.life -= delta;
+
+        if (w.life <= 0) {
+            w.life = w.maxLife;
+            w.offset = new THREE.Vector3(w.lineOffset, 0.2, 100);
+
+            w.mesh.scale.set(3, 3, 3);
+            w.mesh.material.opacity = 0.5;
+            w.mesh.visible = true;
+        }
+
+        if (w.offset) {
+            const p = w.offset.clone();
+            p.applyAxisAngle(new THREE.Vector3(0, 1, 0), boat.rotation.y);
+            p.add(boat.position);
+            w.mesh.position.copy(p);
+        }
+
+        const t = w.life / w.maxLife;
+        const size = THREE.MathUtils.lerp(2, 30, 1 - t);
+        w.mesh.scale.set(size, size, size);
+        w.mesh.material.opacity = t * 0.5;
+
+        // movimiento hacia atrás
+        if (w.offset) {
+            w.offset.z -= 0.4 * delta * 100;
+
+            // movimiento lateral hacia la DERECHA
+            const lateralSpeed = 0.3;
+            w.offset.x += lateralSpeed * delta * 60;
+        }
+    });
+}
 
 
 // Animación principal
@@ -418,6 +684,10 @@ function animate() {
   requestAnimationFrame(animate);
 
   const deltaTime = 1.0 / 60.0;
+
+  updateBackFoam(deltaTime);
+  updateFrontFoamLeft(deltaTime);
+  updateFrontFoamRight(deltaTime);
 
   // Animar agua
   if (water.material.uniforms && water.material.uniforms['time']) {
@@ -442,7 +712,7 @@ function animate() {
       targetCameraPos = null;
       if (cinematicMode) {
         if (inDetailsMode) {
-          // FORZAMOS la posición del container al centro una única vez cuando entras en detalles
+          // FORZAMOS la posición del barco al centro
           if (boat) {
             boat.position.set(0, 2, 0);
             if (!boat.userData) boat.userData = {};
@@ -471,32 +741,27 @@ function animate() {
 
   // === Empuje físico con HITBOX ===
   if (boat && boatHitbox) {
-    // calculamos velocidad del container (sin animación)
     const boatVel = new THREE.Vector3().subVectors(boat.position, lastBoatPosition);
     const boatSpeed = boatVel.length();
 
     const boatBox = new THREE.Box3().setFromObject(boatHitbox);
 
     bubbles.forEach((bubble, i) => {
-      // caja aproximada de la burbuja
       const bubbleBox = new THREE.Box3().setFromCenterAndSize(
         bubble.position.clone(),
         new THREE.Vector3(bubble.scale.x * 25, bubble.scale.y * 25, bubble.scale.z * 25)
       );
 
       if (boatBox.intersectsBox(bubbleBox)) {
-        // Empuje dirigido por la posición relativa a la caja/container
         const pushDir = new THREE.Vector3().subVectors(bubble.position, boat.position).normalize();
         pushDir.y = 0;
 
-        // fuerza basada en la velocidad del container (no en la animación)
         const pushStrength = THREE.MathUtils.clamp(boatSpeed * 180, 3, 100);
 
         if (!bubble.userData.velocity) bubble.userData.velocity = new THREE.Vector3();
         bubble.userData.velocity.addScaledVector(pushDir, pushStrength);
       }
 
-      // inicializar velocidad si es necesario
       if (!bubble.userData.velocity) bubble.userData.velocity = new THREE.Vector3();
 
       // colisiones entre burbujas
@@ -560,7 +825,7 @@ for (let i = 0; i < 30; i++) {
 
 function animateMap() {
   mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
-  mapCtx.strokeStyle = "#00ffff26";
+  mapCtx.strokeStyle = "#1900ff26";
   mapCtx.lineWidth = 1;
   for (let x = 0; x < mapCanvas.width; x += 40) {
     mapCtx.beginPath(); mapCtx.moveTo(x, 0); mapCtx.lineTo(x, mapCanvas.height); mapCtx.stroke();
