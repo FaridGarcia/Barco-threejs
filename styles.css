@@ -8,13 +8,12 @@ canvas {
   transition: transform 0.4s ease;
 }
 
-
 #infoPanel {
   position: fixed;
   bottom: 0;
   left: 0;
   width: 100vw;
-  height: 260px;
+  height: 180px;
   background: #223344d9;
   color: #aee7ff;
   box-shadow: 0 0 20px rgba(0, 200, 255, 0.2);
@@ -30,20 +29,19 @@ canvas {
     linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
   background-size: 40px 40px;
-  align-items: flex-start;
+  align-items: center;
   justify-content: flex-start;
   overflow: hidden;
 }
-
 
 #infoPanel.visible {
   transform: translateY(0);
 }
 
-
 #infoPanel h2 {
-  margin-top: 10px;
-  font-size: 1.6rem;
+  margin-top: 10px 0 auto;
+  font-size: 1rem;
+  max-width: 60%;
   text-transform: uppercase;
   letter-spacing: 2px;
   background: rgba(0, 120, 255, 0.15);
@@ -54,15 +52,40 @@ canvas {
   color: #c8f3ff;
 }
 
-
 #infoPanel p {
   line-height: 2;
-  font-size: 1rem;
+  font-size: 0.8rem;
   margin: 12px 0;
   color: #aee7ff;
   border-left: 2px solid rgba(0, 180, 255, 0.3);
   padding-left: 10px;
   text-align: left;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 500px;
+  margin-top: 8px;
+  width: max-content;
+  margin-left: auto; 
+  margin-right: auto;
+
+}
+
+.infoItem {
+  display: contents;
+}
+
+.subtitle {
+  font-weight: bold;
+  color: #c8f3ff;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.value {
+  color: #aee7ff;
 }
 
 #closePanelBtn {
@@ -118,14 +141,14 @@ canvas {
   }
 }
 
-
 #infoContent {
   position: relative;
   z-index: 5;
-  width: 95%;
-  
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-
 
 #detailsBtn {
   position: fixed;
@@ -147,4 +170,49 @@ canvas {
 
 #detailsBtn:hover {
   background-color: #1565c0;
+}
+
+#detailsBtn.returnMode {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  bottom: unset;
+  transform: none;
+  padding: 0;
+  width: 70px;
+  height: 70px;
+  background: none; 
+  border: none;
+  cursor: pointer;
+}
+
+#detailsBtn.returnMode video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+#muteBtn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  width: 70px;
+  height: 70px;
+  z-index: 9999;
+}
+
+#muteBtn video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+#muteBtn:hover {
+  filter: brightness(1.2);
 }

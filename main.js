@@ -35,7 +35,6 @@ const boatSound = new THREE.Audio(listener);
 const openSound = new THREE.Audio(listener);
 const closeSound = new THREE.Audio(listener);
 
-
 audioLoader.load('sounds/ocean.mp3', buffer => {
   oceanSound.setBuffer(buffer);
   oceanSound.setLoop(true);
@@ -68,6 +67,36 @@ renderer.domElement.addEventListener("click", () => {
   }
 });
 
+
+// boton mute
+let isMuted = false;
+const allSounds = [oceanSound, boatSound, openSound, closeSound];
+
+function applyMuteState() {
+  allSounds.forEach(s => {
+    if (!s) return;
+
+    if (isMuted) {
+      s.setVolume(0);
+    } else {
+      if (s === oceanSound) s.setVolume(0.4);
+      if (s === boatSound) s.setVolume(0.7);
+      if (s === openSound) s.setVolume(1.0);
+      if (s === closeSound) s.setVolume(1.0);
+    }
+  });
+}
+const muteBtn = document.getElementById("muteBtn");
+const muteVideo = document.getElementById("muteVideo");
+muteVideo.src = "videos/botones/sound.webm";
+
+muteBtn.addEventListener("click", () => {
+  isMuted = !isMuted;
+  applyMuteState();
+  muteVideo.src = isMuted ? "videos/botones/mute.webm" : "videos/botones/sound.webm";
+});
+
+
 // Luces
 const ambientLight = new THREE.AmbientLight(0xffffff, 1);
 scene.add(ambientLight);
@@ -81,46 +110,53 @@ const sky = new Sky();
 sky.scale.setScalar(10000);
 scene.add(sky);
 
-const sun = new THREE.Vector3();
-const effectController = {
-  turbidity: 10,
-  rayleigh: 2,
-  mieCoefficient: 0.005,
-  mieDirectionalG: 0.8,
-  elevation: 895,
-  azimuth: 200,
-  exposure: renderer.toneMappingExposure
-};
+const skyUniforms = sky.material.uniforms;
+skyUniforms["turbidity"].value = 2;
+skyUniforms["rayleigh"].value = 0.1;
+skyUniforms["mieCoefficient"].value = 0.0005;
+skyUniforms["mieDirectionalG"].value = 0.1;
 
-function updateSun() {
-  const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
-  const theta = THREE.MathUtils.degToRad(effectController.azimuth);
-  sun.setFromSphericalCoords(1, phi, theta);
-  sky.material.uniforms['sunPosition'].value.copy(sun);
-}
-updateSun();
+const sun = new THREE.Vector3();
 
 // Agua 
 const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
+
 const water = new Water(waterGeometry, {
-  textureWidth: 1024,
-  textureHeight: 1024,
-  waterNormals: new THREE.TextureLoader().load(
-    'https://threejs.org/examples/textures/waternormals.jpg',
-    texture => {
-      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    }
-  ),
-  sunDirection: new THREE.Vector3(),
-  sunColor: 0xffffff,
-  waterColor: 0x000914,
-  distortionScale: 10.0,
-  size: 50.0,
-  alpha: 0.9,
-  fog: scene.fog !== undefined
+    textureWidth: 1024,
+    textureHeight: 1024,
+    waterNormals: new THREE.TextureLoader().load(
+        "https://threejs.org/examples/textures/waternormals.jpg",
+        (texture) => {
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        }
+    ),
+    sunDirection: new THREE.Vector3(),
+    sunColor: 0xffffff,
+    waterColor: new THREE.Color(0x001433), 
+    reflectivity: 0.005,
+    distortionScale: 1.8,
+    fog: scene.fog !== undefined
 });
+
 water.rotation.x = -Math.PI / 2;
 scene.add(water);
+
+function updateSun() {
+    const inclination = 0.02;
+    const azimuth = 0.205;
+
+    const theta = Math.PI * (inclination - 0.5);
+    const phi = 2 * Math.PI * (azimuth - 0.5);
+
+    sun.x = Math.cos(phi);
+    sun.y = Math.sin(phi) * Math.sin(theta);
+    sun.z = Math.sin(phi) * Math.cos(theta);
+
+    sky.material.uniforms["sunPosition"].value.copy(sun);
+    water.material.uniforms["sunDirection"].value.copy(sun).normalize();
+}
+updateSun();
+
 
 // Variables globales
 const raycaster = new THREE.Raycaster();
@@ -167,7 +203,7 @@ loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
   boatVisual.position.set(0, 0.5, 0);
 
   // HITBOX
-  const hitboxSize = new THREE.Vector3(40, 40, 200); // tus valores originales
+  const hitboxSize = new THREE.Vector3(40, 40, 200);
   const hitboxGeometry = new THREE.BoxGeometry(hitboxSize.x, hitboxSize.y, hitboxSize.z);
   const hitboxMaterial = new THREE.MeshBasicMaterial({
     color: 0x00ff00,
@@ -196,7 +232,7 @@ loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
 });
 
 
-// === ESTELA DETRÁS DEL BARCO ===
+// === ESPUMA DETRÁS DEL BARCO ===
 const backFoamPlanes = [];
 const backFoamPerLine = 25; // numero de manchas por línea
 const backFoamLines = 5;  // 5 generadores de espuma
@@ -240,7 +276,7 @@ const frontFoamTexture = foamTexture;
 let frontGeneratorOffsetLeft = -6;
 let frontGeneratorOffsetRight = -6;
 
-// CREAR ESPUMA IZQUIERDA
+// CREAR ESPUMA FRONTAL IZQUIERDA
 for (let i = 0; i < frontFoamPerLine; i++) {
     const material = new THREE.MeshBasicMaterial({
         map: frontFoamTexture,
@@ -264,7 +300,7 @@ for (let i = 0; i < frontFoamPerLine; i++) {
     });
 }
 
-// CREAR ESPUMA DERECHA
+// CREAR ESPUMA FRONTAL DERECHA
 for (let i = 0; i < frontFoamPerLine; i++) {
     const material = new THREE.MeshBasicMaterial({
         map: frontFoamTexture,
@@ -286,6 +322,41 @@ for (let i = 0; i < frontFoamPerLine; i++) {
         delay: Math.random() * 0.5,
         lineOffset: frontGeneratorOffsetRight
     });
+}
+
+// === ESPUMA A LOS LADOS DEL BARCO ===
+const sideFoamPlanes = [];
+const sideFoamPerLine = 50; // numero de manchas por línea
+const sideFoamLines = 2;  // 2 generadores de espuma
+
+const sideFoamTexture = foamTexture;
+
+const sideLateralOffsets = [-25, 15];
+
+for (let line = 0; line < sideFoamLines; line++) {
+  for (let i = 0; i < sideFoamPerLine; i++) {
+
+    const material = new THREE.MeshBasicMaterial({
+      map: sideFoamTexture,
+      transparent: true,
+      opacity: 0.1,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const geometry = new THREE.PlaneGeometry(3, 3); // tamaño espuma
+    const plane = new THREE.Mesh(geometry, material);
+    plane.rotation.x = -Math.PI / 2;
+    scene.add(plane);
+
+    sideFoamPlanes.push({
+      mesh: plane,
+      life: Math.random() * 1.5,
+      maxLife: 1 + Math.random(),
+      delay: Math.random() * 0.5,
+      lineOffset: sideLateralOffsets[line]
+    });
+  }
 }
 
 
@@ -374,7 +445,8 @@ detailsBtn.addEventListener('click', () => {
     cinematicMode = true;
     isDragging = false;
     inDetailsMode = true;
-    detailsBtn.textContent = 'Volver';
+    detailsBtn.innerHTML =`<video src="videos/botones/botonVolver.webm" autoplay loop muted></video>`;
+    detailsBtn.classList.add("returnMode");
     if (boat.userData && boat.userData.velocity) boat.userData.velocity.set(0,0,0);
   } else {
     cinematicMode = true;
@@ -382,6 +454,7 @@ detailsBtn.addEventListener('click', () => {
     targetBoatPos = null;
     inDetailsMode = false;
     detailsBtn.textContent = 'Detalles';
+    detailsBtn.classList.remove("returnMode");
 
     // limpiar burbujas
     bubbles.forEach(b => {
@@ -502,21 +575,40 @@ const closePanelBtn = document.getElementById('closePanelBtn');
 let typingController = { cancel: false };
 function stopTyping() { typingController.cancel = true; }
 
-async function typeLinesIntoContainer(container, lines, charSpeed = 18, lineDelay = 220) {
-  stopTyping();
-  typingController = { cancel: false };
-  container.innerHTML = "";
-  for (const line of lines) {
-    if (typingController.cancel) break;
-    const p = document.createElement("p");
-    container.appendChild(p);
-    for (let i = 0; i <= line.length; i++) {
-      if (typingController.cancel) break;
-      p.textContent = line.slice(0, i);
-      await new Promise(res => setTimeout(res, charSpeed));
+function typeLinesIntoGrid(data, speed = 16, delay = 150) {
+  let lineIndex = 0;
+
+  function typeNextLine() {
+    if (lineIndex >= data.length) return;
+    const item = data[lineIndex];
+    const subtitleEl = document.getElementById(`subtitle-${lineIndex}`);
+    const valueEl = document.getElementById(`value-${lineIndex}`);
+    const subtitleText = item.subtitle;
+    const valueText = item.value;
+    let sIndex = 0;
+    let vIndex = 0;
+
+    function typeSubtitle() {
+      if (sIndex < subtitleText.length) {
+        subtitleEl.textContent += subtitleText[sIndex++];
+        setTimeout(typeSubtitle, speed);
+      } else {
+        setTimeout(typeValue, speed * 3);
+      }
     }
-    await new Promise(res => setTimeout(res, lineDelay));
+
+    function typeValue() {
+      if (vIndex < valueText.length) {
+        valueEl.textContent += valueText[vIndex++];
+        setTimeout(typeValue, speed);
+      } else {
+        lineIndex++;
+        setTimeout(typeNextLine, delay);
+      }
+    }
+    typeSubtitle();
   }
+  typeNextLine();
 }
 
 function onBubbleClick(bubble, index) {
@@ -524,9 +616,23 @@ function onBubbleClick(bubble, index) {
   if (!info) return;
   stopTyping();
   infoTitle.textContent = info.title;
-  const lines = info.data.map(item => `${item.subtitle}: ${item.value}`);
-  infoPanel.classList.add('visible');
-  typeLinesIntoContainer(infoText, lines, 16, 220);
+  const emptyGridHTML = `
+    <div class="infoGrid">
+      ${info.data
+        .map(
+          (item, i) => `
+        <div class="infoItem" id="infoItem-${i}">
+          <span class="subtitle" id="subtitle-${i}"></span>
+          <span class="value" id="value-${i}"></span>
+        </div>
+      `
+        )
+        .join("")}
+    </div>
+  `;
+  infoText.innerHTML = emptyGridHTML;
+  infoPanel.classList.add("visible");
+  typeLinesIntoGrid(info.data);
 
   if (openSound.buffer) openSound.play();
 }
@@ -678,16 +784,57 @@ function updateFrontFoamRight(delta) {
     });
 }
 
+// Desplazamiento espuma de los lados
+function updateSideFoam(delta) {
+    if (!boat) return;
+
+    sideFoamPlanes.forEach(w => {
+        w.life -= delta;
+
+        if (w.life <= 0) {
+            w.life = w.maxLife;
+
+            // Offset lateral
+            w.offset = new THREE.Vector3(w.lineOffset, 0.2, 30);
+
+            w.mesh.scale.set(0.2, 0.2, 0.2);
+            w.mesh.material.opacity = 0.4;
+            w.mesh.visible = true;
+        }
+
+        if (w.offset) {
+            let p = w.offset.clone();
+            p.applyAxisAngle(new THREE.Vector3(0,1,0), boat.rotation.y);
+            p.add(boat.position);
+            w.mesh.position.copy(p);
+        }
+
+        const t = w.life / w.maxLife;
+
+        const size = THREE.MathUtils.lerp(1, 12, 1 - t);
+        w.mesh.scale.set(size, size, size);
+
+        w.mesh.material.opacity = t * 0.4;
+
+        if (w.offset) {
+            w.offset.z -= 0.4 * delta * 200;
+        }
+    });
+}
+
 
 // Animación principal
 function animate() {
   requestAnimationFrame(animate);
+
+  water.material.uniforms["time"].value += 1.0 / 60.0;
 
   const deltaTime = 1.0 / 60.0;
 
   updateBackFoam(deltaTime);
   updateFrontFoamLeft(deltaTime);
   updateFrontFoamRight(deltaTime);
+  updateSideFoam(deltaTime);
 
   // Animar agua
   if (water.material.uniforms && water.material.uniforms['time']) {
