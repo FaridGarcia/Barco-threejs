@@ -170,6 +170,10 @@ let boatHitbox = null;
 let lastBoatPosition = new THREE.Vector3();
 let isDragging = false;
 
+let wave = null;    
+let waveContainer = null;
+let waveVisual = null; 
+
 // movimiento / cámara / modos
 let targetBoatPos = null;
 let targetCameraPos = null;
@@ -226,6 +230,33 @@ loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
   lastBoatPosition.copy(boat.position);
 
   scene.add(boatContainer);
+
+}, undefined, function (error) {
+  console.error('Error al cargar el modelo:', error);
+});
+
+loader.load('models/wave.gltf', (gltfScene) => {
+  waveContainer = new THREE.Object3D();
+  waveContainer.name = "waveContainer";
+  waveVisual = gltfScene.scene;
+  waveVisual.name = "boatVisual";
+  waveVisual.traverse((child) => {
+    if (child.isMesh) {
+      console.log(child.material);
+    }
+  });
+  waveVisual.scale.set(100, 100, 100);
+  waveVisual.position.set(0, -10, 0);
+  waveVisual.rotation.y = 5
+
+  waveContainer.add(waveVisual);
+
+  waveContainer.position.set(0, 0.5, 0);
+
+  wave = waveContainer;
+  lastBoatPosition.copy(wave.position);
+
+  scene.add(waveContainer);
 
 }, undefined, function (error) {
   console.error('Error al cargar el modelo:', error);
