@@ -9,7 +9,8 @@ const bubbleInfo = [
   { title: "Capacidades", data: [ { subtitle: "Tripulación", value: "20" }, { subtitle: "Pasajeros", value: "50" }, { subtitle: "Capacidad de Carga", value: "500 toneladas" } ] },
   { title: "Propulsión", data: [ { subtitle: "Motores Principales", value: "2 x Motores Diésel" }, { subtitle: "Hélices", value: "2 x Hélices de Paso Controlable" } ] },
   { title: "Sistema Eléctrico", data: [ { subtitle: "Generadores", value: "2 x Generadores Diésel" }, { subtitle: "Suministro de energía", value: "440V /60Hz" } ] },
-  { title: "Navegación y Comunicación", data: [ { subtitle: "Radar", value: "Sistema de Radar Avanzado" }, { subtitle: "GPS", value: "Sistema GPS Dual" }, { subtitle: "Sistemas de comunicación", value: "Comunicación Satelital" } ] }
+  { title: "Navegación y Comunicación", data: [ { subtitle: "Radar", value: "Sistema de Radar Avanzado" }, { subtitle: "GPS", value: "Sistema GPS Dual" }, { subtitle: "Sistemas de comunicación", value: "Comunicación Satelital" } ] },
+  { title: "Descripción General", data: [ { subtitle: "Lancha Patrullera Voxel (LPV): El Centro de Mando Móvil.", value: "Diseñada y construida en Colombia, la LPV combina un casco de alta resistencia con la superioridad tecnológica. Equipada con radar de vigilancia avanzada y sistemas de comunicaciones seguras, esta plataforma ofrece el mando y control (C2) decisivo para operaciones rápidas en cualquier entorno acuático. Precisión Voxel, Poder Colombiano." } ] },
 ];
 
 // Escena, cámara, renderer
@@ -170,9 +171,20 @@ let boatHitbox = null;
 let lastBoatPosition = new THREE.Vector3();
 let isDragging = false;
 
-let wave = null;    
-let waveContainer = null;
-let waveVisual = null; 
+// Prueba con Frames
+let waveFrames = [];
+let currentWaveIndex = 0;
+let waveFrameContainer;
+let waveFrameSpeed = 5; // FPS
+let waveFrameTimer = 0;
+let waveDirection = 1;
+
+let backWaveFrames = [];
+let currentBackWaveIndex = 0;
+let backWaveFrameContainer;
+let backWaveFrameSpeed = 5; // FPS
+let backWaveFrameTimer = 0;
+let backWaveDirection = 1;
 
 // movimiento / cámara / modos
 let targetBoatPos = null;
@@ -235,160 +247,57 @@ loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
   console.error('Error al cargar el modelo:', error);
 });
 
-loader.load('models/wave.gltf', (gltfScene) => {
-  waveContainer = new THREE.Object3D();
-  waveContainer.name = "waveContainer";
-  waveVisual = gltfScene.scene;
-  waveVisual.name = "boatVisual";
-  waveVisual.traverse((child) => {
-    if (child.isMesh) {
-      console.log(child.material);
-    }
+// ---- Cargar frames de animación ----
+const framePaths = [
+  'models/wave/Frame1.gltf',
+  'models/wave/Frame2.gltf',
+  'models/wave/Frame3.gltf',
+  'models/wave/Frame4.gltf'
+];
+
+waveFrameContainer = new THREE.Object3D();
+waveFrameContainer.position.set(0, 0, 0);
+scene.add(waveFrameContainer);
+
+framePaths.forEach((path, i) => {
+  loader.load(path, gltf => {
+    const frame = gltf.scene;
+    frame.visible = false;
+
+    frame.scale.set(80, 80, 120);
+    frame.position.set(-5, -10, 42);
+
+    waveFrames[i] = frame;
+    waveFrameContainer.add(frame);
   });
-  waveVisual.scale.set(100, 100, 100);
-  waveVisual.position.set(0, -10, 0);
-  waveVisual.rotation.y = 5
-
-  waveContainer.add(waveVisual);
-
-  waveContainer.position.set(0, 0.5, 0);
-
-  wave = waveContainer;
-  lastBoatPosition.copy(wave.position);
-
-  scene.add(waveContainer);
-
-}, undefined, function (error) {
-  console.error('Error al cargar el modelo:', error);
 });
 
+const backFramePaths = [
+  "models/estela/Frame1.gltf",
+  "models/estela/Frame2.gltf",
+  "models/estela/Frame3.gltf",
+  "models/estela/Frame4.gltf",
+  "models/estela/Frame5.gltf",
+  "models/estela/Frame6.gltf"
+];
 
-// === ESPUMA DETRÁS DEL BARCO ===
-const backFoamPlanes = [];
-const backFoamPerLine = 25; // numero de manchas por línea
-const backFoamLines = 5;  // 5 generadores de espuma
+backWaveFrameContainer = new THREE.Object3D();
+backWaveFrameContainer.name = "backWaveFrameContainer";
+scene.add(backWaveFrameContainer);
 
-const foamTexture = new THREE.TextureLoader().load("public/textures/foam.png");
+backFramePaths.forEach((path, i) => {
+  loader.load(path, gltf => {
+    const frame = gltf.scene;
+    frame.visible = false;
 
-const backLateralOffsets = [-20,-12, -4, 4, 12];  // izquierda - centro - derecha
+    // Usa los valores que tú tenías antes
+    frame.scale.set(60, 60, 120);
+    frame.position.set(-5, -3, 260);
 
-for (let line = 0; line < backFoamLines; line++) {
-  for (let i = 0; i < backFoamPerLine; i++) {
-
-    const material = new THREE.MeshBasicMaterial({
-      map: foamTexture,
-      transparent: true,
-      opacity: 0.1,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-
-    const geometry = new THREE.PlaneGeometry(3, 3); // tamaño espuma
-    const plane = new THREE.Mesh(geometry, material);
-    plane.rotation.x = -Math.PI / 2;
-    scene.add(plane);
-
-    backFoamPlanes.push({
-      mesh: plane,
-      life: Math.random() * 1.5,
-      maxLife: 1 + Math.random(),
-      delay: Math.random() * 0.5,
-      lineOffset: backLateralOffsets[line]
-    });
-  }
-}
-
-
-// === ESPUMA FRONTAL ===
-const frontFoamLeftPlanes = [];
-const frontFoamRightPlanes = [];
-const frontFoamPerLine = 25;
-const frontFoamTexture = foamTexture;
-let frontGeneratorOffsetLeft = -6;
-let frontGeneratorOffsetRight = -6;
-
-// CREAR ESPUMA FRONTAL IZQUIERDA
-for (let i = 0; i < frontFoamPerLine; i++) {
-    const material = new THREE.MeshBasicMaterial({
-        map: frontFoamTexture,
-        transparent: true,
-        opacity: 0.1,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-    });
-
-    const geometry = new THREE.PlaneGeometry(3, 3);
-    const plane = new THREE.Mesh(geometry, material);
-    plane.rotation.x = -Math.PI / 2;
-    scene.add(plane);
-
-    frontFoamLeftPlanes.push({
-        mesh: plane,
-        life: Math.random() * 1.5,
-        maxLife: 1 + Math.random(),
-        delay: Math.random() * 0.5,
-        lineOffset: frontGeneratorOffsetLeft
-    });
-}
-
-// CREAR ESPUMA FRONTAL DERECHA
-for (let i = 0; i < frontFoamPerLine; i++) {
-    const material = new THREE.MeshBasicMaterial({
-        map: frontFoamTexture,
-        transparent: true,
-        opacity: 0.1,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-    });
-
-    const geometry = new THREE.PlaneGeometry(3, 3);
-    const plane = new THREE.Mesh(geometry, material);
-    plane.rotation.x = -Math.PI / 2;
-    scene.add(plane);
-
-    frontFoamRightPlanes.push({
-        mesh: plane,
-        life: Math.random() * 1.5,
-        maxLife: 1 + Math.random(),
-        delay: Math.random() * 0.5,
-        lineOffset: frontGeneratorOffsetRight
-    });
-}
-
-// === ESPUMA A LOS LADOS DEL BARCO ===
-const sideFoamPlanes = [];
-const sideFoamPerLine = 50; // numero de manchas por línea
-const sideFoamLines = 2;  // 2 generadores de espuma
-
-const sideFoamTexture = foamTexture;
-
-const sideLateralOffsets = [-25, 15];
-
-for (let line = 0; line < sideFoamLines; line++) {
-  for (let i = 0; i < sideFoamPerLine; i++) {
-
-    const material = new THREE.MeshBasicMaterial({
-      map: sideFoamTexture,
-      transparent: true,
-      opacity: 0.1,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-
-    const geometry = new THREE.PlaneGeometry(3, 3); // tamaño espuma
-    const plane = new THREE.Mesh(geometry, material);
-    plane.rotation.x = -Math.PI / 2;
-    scene.add(plane);
-
-    sideFoamPlanes.push({
-      mesh: plane,
-      life: Math.random() * 1.5,
-      maxLife: 1 + Math.random(),
-      delay: Math.random() * 0.5,
-      lineOffset: sideLateralOffsets[line]
-    });
-  }
-}
+    backWaveFrames[i] = frame;
+    backWaveFrameContainer.add(frame);
+  });
+});
 
 
 // Interacciones: pointerdown / move / up
@@ -697,181 +606,95 @@ renderer.domElement.addEventListener('click', (event) => {
   }
 });
 
-// Desplazamiento espuma trasera
-function updateBackFoam(delta) {
-  if (!boat) return;
-
-  backFoamPlanes.forEach(w => {
-    w.life -= delta;
-
-    if (w.life <= 0) {
-      w.life = w.maxLife;
-
-      // offset base detrás del barco
-      w.offset = new THREE.Vector3(w.lineOffset, 0.2, -110);
-      const sideFactor = w.lineOffset * 0.1;
-      w.offset.x += sideFactor;
-
-      w.mesh.scale.set(0.2, 0.2, 0.2);
-      w.mesh.material.opacity = 0.5;
-      w.mesh.visible = true;
-    }
-
-    if (w.offset) {
-      const p = w.offset.clone();
-      p.applyAxisAngle(new THREE.Vector3(0,1,0), boat.rotation.y);
-      p.add(boat.position);
-      w.mesh.position.copy(p);
-    }
-
-    const t = w.life / w.maxLife;
-
-    const size = THREE.MathUtils.lerp(2, 30, 1 - t);
-    w.mesh.scale.set(size, size, size);
-
-    w.mesh.material.opacity = t * 0.5;
-
-    if (w.offset) {
-      w.offset.z -= 0.4 * delta * 100;
-    }
-  });
-}
-
-
-// Desplazamiento espuma delantera
-function updateFrontFoamLeft(delta) {
-    if (!boat) return;
-
-    frontFoamLeftPlanes.forEach(w => {
-        w.life -= delta;
-
-        if (w.life <= 0) {
-            w.life = w.maxLife;
-            w.offset = new THREE.Vector3(w.lineOffset, 0.2, 100);
-
-            w.mesh.scale.set(3, 3, 3);
-            w.mesh.material.opacity = 0.5;
-            w.mesh.visible = true;
-        }
-
-        if (w.offset) {
-            const p = w.offset.clone();
-            p.applyAxisAngle(new THREE.Vector3(0, 1, 0), boat.rotation.y);
-            p.add(boat.position);
-            w.mesh.position.copy(p);
-        }
-
-        const t = w.life / w.maxLife;
-        const size = THREE.MathUtils.lerp(2, 30, 1 - t);
-        w.mesh.scale.set(size, size, size);
-        w.mesh.material.opacity = t * 0.5;
-
-        // movimiento hacia atrás
-        if (w.offset) {
-            w.offset.z -= 0.4 * delta * 100;
-
-            // movimiento lateral hacia la IZQUIERDA
-            const lateralSpeed = 0.3;
-            w.offset.x -= lateralSpeed * delta * 60;
-        }
-    });
-}
-
-function updateFrontFoamRight(delta) {
-    if (!boat) return;
-
-    frontFoamRightPlanes.forEach(w => {
-        w.life -= delta;
-
-        if (w.life <= 0) {
-            w.life = w.maxLife;
-            w.offset = new THREE.Vector3(w.lineOffset, 0.2, 100);
-
-            w.mesh.scale.set(3, 3, 3);
-            w.mesh.material.opacity = 0.5;
-            w.mesh.visible = true;
-        }
-
-        if (w.offset) {
-            const p = w.offset.clone();
-            p.applyAxisAngle(new THREE.Vector3(0, 1, 0), boat.rotation.y);
-            p.add(boat.position);
-            w.mesh.position.copy(p);
-        }
-
-        const t = w.life / w.maxLife;
-        const size = THREE.MathUtils.lerp(2, 30, 1 - t);
-        w.mesh.scale.set(size, size, size);
-        w.mesh.material.opacity = t * 0.5;
-
-        // movimiento hacia atrás
-        if (w.offset) {
-            w.offset.z -= 0.4 * delta * 100;
-
-            // movimiento lateral hacia la DERECHA
-            const lateralSpeed = 0.3;
-            w.offset.x += lateralSpeed * delta * 60;
-        }
-    });
-}
-
-// Desplazamiento espuma de los lados
-function updateSideFoam(delta) {
-    if (!boat) return;
-
-    sideFoamPlanes.forEach(w => {
-        w.life -= delta;
-
-        if (w.life <= 0) {
-            w.life = w.maxLife;
-
-            // Offset lateral
-            w.offset = new THREE.Vector3(w.lineOffset, 0.2, 30);
-
-            w.mesh.scale.set(0.2, 0.2, 0.2);
-            w.mesh.material.opacity = 0.4;
-            w.mesh.visible = true;
-        }
-
-        if (w.offset) {
-            let p = w.offset.clone();
-            p.applyAxisAngle(new THREE.Vector3(0,1,0), boat.rotation.y);
-            p.add(boat.position);
-            w.mesh.position.copy(p);
-        }
-
-        const t = w.life / w.maxLife;
-
-        const size = THREE.MathUtils.lerp(1, 12, 1 - t);
-        w.mesh.scale.set(size, size, size);
-
-        w.mesh.material.opacity = t * 0.4;
-
-        if (w.offset) {
-            w.offset.z -= 0.4 * delta * 200;
-        }
-    });
-}
-
 
 // Animación principal
 function animate() {
   requestAnimationFrame(animate);
-
   water.material.uniforms["time"].value += 1.0 / 60.0;
-
   const deltaTime = 1.0 / 60.0;
-
-  updateBackFoam(deltaTime);
-  updateFrontFoamLeft(deltaTime);
-  updateFrontFoamRight(deltaTime);
-  updateSideFoam(deltaTime);
 
   // Animar agua
   if (water.material.uniforms && water.material.uniforms['time']) {
     water.material.uniforms['time'].value += deltaTime;
   }
-  
+
+  //animar olas
+  // ---- Animación por frames ----
+ if (waveFrames.length === framePaths.length) {
+
+  waveFrameTimer += deltaTime;
+
+  if (waveFrameTimer > 1 / waveFrameSpeed) {
+    waveFrameTimer = 0;
+
+    // Ocultamos frame actual
+    waveFrames[currentWaveIndex].visible = false;
+    currentWaveIndex += waveDirection;
+    if (currentWaveIndex >= waveFrames.length - 1) {
+      currentWaveIndex = waveFrames.length - 1;
+      waveDirection = -1;
+    }
+    else if (currentWaveIndex <= 0) {
+      currentWaveIndex = 0;
+      waveDirection = 1;
+    }
+    // Mostrar siguiente frame 
+    waveFrames[currentWaveIndex].visible = true;
+  }
+
+  // ---- Animación backWave por frames ----
+if (backWaveFrames.length === backFramePaths.length) {
+
+  backWaveFrameTimer += deltaTime;
+
+  if (backWaveFrameTimer > 1 / backWaveFrameSpeed) {
+    backWaveFrameTimer = 0;
+
+    // Ocultar frame actual
+    backWaveFrames[currentBackWaveIndex].visible = false;
+    currentBackWaveIndex += backWaveDirection;
+    if (currentBackWaveIndex >= backWaveFrames.length - 1) {
+      currentBackWaveIndex = backWaveFrames.length - 1;
+      backWaveDirection = -1;
+    }
+    else if (currentBackWaveIndex <= 0) {
+      currentBackWaveIndex = 0;
+      backWaveDirection = 1;
+    }
+
+    // Mostrar siguiente frame
+    backWaveFrames[currentBackWaveIndex].visible = true;
+  }
+}
+
+
+  // Hacer que el frame delantero siga al barco
+  if (boat) {
+    const forward = new THREE.Vector3(0, 0, 1);
+    forward.applyQuaternion(boat.quaternion);
+    forward.normalize();
+
+    const offset = 55;
+    const wavePos = boat.position.clone().addScaledVector(forward, offset);
+
+    waveFrameContainer.position.lerp(wavePos, 0.5);
+    waveFrameContainer.rotation.y = boat.rotation.y;
+  }
+
+  // Hacer que el frame trasero siga al barco
+  if (boat && backWaveFrameContainer) {
+    const forwardB = new THREE.Vector3(0, 0, 1);
+    forwardB.applyQuaternion(boat.quaternion);
+    forwardB.normalize();
+
+    const backOffset = -150; // negativo para atrás — ajusta a tu gusto
+    const backPos = boat.position.clone().addScaledVector(forwardB, backOffset);
+
+    backWaveFrameContainer.position.lerp(backPos, 0.5);
+    backWaveFrameContainer.rotation.y = boat.rotation.y;
+   }
+}
+
 
   // mover bote hacia el centro
   if (boat && targetBoatPos) {
