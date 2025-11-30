@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
-import { Water } from 'three/examples/jsm/objects/Water.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const bubbleInfo = [
@@ -23,6 +22,7 @@ camera.lookAt(0, 0, 0);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
+renderer.domElement.style.touchAction = "none";
 
 // --- Audio ---
 const listener = new THREE.AudioListener();
@@ -120,27 +120,99 @@ skyUniforms["mieDirectionalG"].value = 0.1;
 const sun = new THREE.Vector3();
 
 // Agua 
-const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
 
-const water = new Water(waterGeometry, {
-    textureWidth: 1024,
-    textureHeight: 1024,
-    waterNormals: new THREE.TextureLoader().load(
-        "https://threejs.org/examples/textures/waternormals.jpg",
-        (texture) => {
-            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+const waterVertexShader = `
+    uniform float uTime;
+    varying vec3 vNormal;
+    varying vec3 vPos;
+
+    float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    }
+
+    float fbm(vec2 p) {
+        float f = 0.0;
+        float amp = 0.5;
+        for (int i = 0; i < 5; i++) {
+            f += amp * sin(p.x * 2.0 + uTime * 1.5) * sin(p.y * 2.0 - uTime * 2.0);
+            p *= 1.9;
+            amp *= 0.45;
         }
-    ),
-    sunDirection: new THREE.Vector3(),
-    sunColor: 0xffffff,
-    waterColor: new THREE.Color(0x001433), 
-    reflectivity: 0.005,
-    distortionScale: 1.8,
-    fog: scene.fog !== undefined
+        return f;
+    }
+
+    void main() {
+        vNormal = normal;
+        vec3 pos = position;
+
+        float t = uTime * 1.8;  // velocidad aumentada
+
+        pos.z += sin(pos.x * 0.25 + t * 6.5) * 0.025;
+        pos.z += sin(pos.y * 0.32 + t * 3.0) * 0.025;
+
+        pos.z += sin((pos.x + pos.y) * 0.18 + t * 2.0) * 0.035;
+        pos.z += sin((pos.x - pos.y) * 0.20 + t * 2.3) * 0.03;
+
+        pos.z += sin(pos.x * 1.8 + pos.y * 2.0 + t * 8.0) * 0.012;
+
+        pos.z += sin(pos.x * 0.05 + t * 13.0) * 0.045;
+        pos.z += sin(pos.y * 0.04 + t * 0.35) * 0.04;
+
+        float noiseWaves = fbm(pos.xy * 0.55 + t * 0.12) * 0.14;
+
+        pos.z += noiseWaves;
+
+        vPos = pos;
+
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    }
+`;
+
+
+const waterFragmentShader = `
+    uniform float uTime;
+    uniform vec3 uDeepColor;
+    uniform vec3 uShallowColor;
+    uniform float uOpacity;
+
+    varying vec3 vNormal;
+    varying vec3 vPos;
+
+    void main() {
+        float fresnel = pow(1.0 - dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 3.0);
+
+        float depthMix = smoothstep(-2.0, 1.0, vPos.z);
+        vec3 color = mix(uDeepColor, uShallowColor, depthMix);
+
+        color += fresnel * 0.2;
+        float shade = dot(normalize(vNormal), vec3(0.3, 0.5, 1.0));
+        shade = clamp(shade, 0.2, 1.0);
+
+        color *= shade * 0.9;
+
+        color += sin(uTime * 0.2 + vPos.x * 0.03) * 0.02;
+
+        gl_FragColor = vec4(color, uOpacity);
+    }
+`;
+
+const waterMaterial = new THREE.ShaderMaterial({
+    vertexShader: waterVertexShader,
+    fragmentShader: waterFragmentShader,
+    transparent: true,
+    uniforms: {
+        uTime: { value: 0 },
+        uDeepColor: { value: new THREE.Color("#00101f") },
+        uShallowColor: { value: new THREE.Color("#046c8b") },
+        uOpacity: { value: 1.0 }
+    }
 });
 
+const waterGeometry = new THREE.PlaneGeometry(12000, 12000, 256, 256);
+const water = new THREE.Mesh(waterGeometry, waterMaterial);
 water.rotation.x = -Math.PI / 2;
 scene.add(water);
+
 
 function updateSun() {
     const inclination = 0.02;
@@ -154,7 +226,6 @@ function updateSun() {
     sun.z = Math.sin(phi) * Math.cos(theta);
 
     sky.material.uniforms["sunPosition"].value.copy(sun);
-    water.material.uniforms["sunDirection"].value.copy(sun).normalize();
 }
 updateSun();
 
@@ -195,6 +266,9 @@ let inDetailsMode = false;
 // Burbujas
 let bubbles = [];
 
+// TouchPoints
+let touchPoints = {};
+
 function getMouseNDC(event) {
   const rect = renderer.domElement.getBoundingClientRect();
   return {
@@ -205,7 +279,7 @@ function getMouseNDC(event) {
 
 // Bote
 const loader = new GLTFLoader();
-loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
+loader.load('models/barco/barco.gltf', (gltfScene) => {
   boatContainer = new THREE.Object3D();
   boatContainer.name = "boatContainer";
   boatVisual = gltfScene.scene;
@@ -215,7 +289,7 @@ loader.load('models/3dpea.com_Sin_nombre/Sin_nombre.gltf', (gltfScene) => {
       console.log(child.material);
     }
   });
-  boatVisual.scale.set(1.1, 1.1, 1.1);
+  boatVisual.scale.set(1.1, 1.1, 1.2);
   boatVisual.position.set(0, 0.5, 0);
 
   // HITBOX
@@ -265,7 +339,7 @@ framePaths.forEach((path, i) => {
     frame.visible = false;
 
     frame.scale.set(80, 80, 120);
-    frame.position.set(-5, -10, 42);
+    frame.position.set(0, -10, 42);
 
     waveFrames[i] = frame;
     waveFrameContainer.add(frame);
@@ -292,7 +366,7 @@ backFramePaths.forEach((path, i) => {
 
     // Usa los valores que tú tenías antes
     frame.scale.set(60, 60, 120);
-    frame.position.set(-5, -3, 260);
+    frame.position.set(0, -3, 260);
 
     backWaveFrames[i] = frame;
     backWaveFrameContainer.add(frame);
@@ -441,9 +515,9 @@ function spawnBubbles() {
       attempts++;
       const geometry = new THREE.SphereGeometry(bubbleRadius, 32, 32);
       const material = new THREE.MeshPhysicalMaterial({
-        color: 0xBE0077,
+        color: 0xffffff,
         transparent: true,
-        opacity: 0.3,
+        opacity: 0.0,
         roughness: 0.05,
         metalness: 0.2,
         transmission: 1.0,
@@ -606,11 +680,99 @@ renderer.domElement.addEventListener('click', (event) => {
   }
 });
 
+// Touchponints - detectar 
+renderer.domElement.addEventListener("touchstart", onTouchUpdate);
+renderer.domElement.addEventListener("touchmove", onTouchUpdate);
+renderer.domElement.addEventListener("touchend", onTouchEnd);
+renderer.domElement.addEventListener("touchcancel", onTouchEnd);
+
+function onTouchUpdate(event) {
+    event.preventDefault();
+
+    touchPoints = {};
+
+    for (let t of event.touches) {
+        touchPoints[t.identifier] = {
+            x: t.clientX,
+            y: t.clientY
+        };
+    }
+
+    if (Object.keys(touchPoints).length === 3) {
+        updateBoatFromTouches();
+    }
+}
+
+function onTouchEnd(event) {
+    for (let t of event.changedTouches) {
+        delete touchPoints[t.identifier];
+    }
+}
+
+function updateBoatFromTouches() {
+    const keys = Object.keys(touchPoints);
+    if (keys.length !== 3) return;
+
+    const p = keys.map(k => touchPoints[k]);
+    const world = p.map(pt => screenToWorld(pt.x, pt.y));
+
+    const center = new THREE.Vector3(
+        (world[0].x + world[1].x + world[2].x) / 3,
+        2,
+        (world[0].z + world[1].z + world[2].z) / 3
+    );
+
+    const centroid = center.clone();
+    let frontIndex = 0;
+    let maxDist = 0;
+
+    for (let i = 0; i < 3; i++) {
+        const d = world[i].distanceTo(centroid);
+        if (d > maxDist) {
+            maxDist = d;
+            frontIndex = i;
+        }
+    }
+
+    const front = world[frontIndex];
+    const back1 = world[(frontIndex + 1) % 3];
+    const back2 = world[(frontIndex + 2) % 3];
+
+    const backCenter = new THREE.Vector3(
+        (back1.x + back2.x) / 2,
+        2,
+        (back1.z + back2.z) / 2
+    );
+
+    const direction = new THREE.Vector3().subVectors(front, backCenter);
+
+    const angle = Math.atan2(direction.x, direction.z);
+
+    if (boat) {
+        boat.position.lerp(center, 0.25);
+        boat.rotation.y = angle;
+    }
+}
+
+function screenToWorld(x, y) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+        ((x - rect.left) / rect.width) * 2 - 1,
+        -((y - rect.top) / rect.height) * 2 + 1
+    );
+
+    raycaster.setFromCamera(ndc, camera);
+    const hits = raycaster.intersectObject(water);
+    return hits.length > 0 ? hits[0].point.clone() : new THREE.Vector3();
+}
+
+
+
 
 // Animación principal
 function animate() {
   requestAnimationFrame(animate);
-  water.material.uniforms["time"].value += 1.0 / 60.0;
+  waterMaterial.uniforms.uTime.value += 0.02;
   const deltaTime = 1.0 / 60.0;
 
   // Animar agua
