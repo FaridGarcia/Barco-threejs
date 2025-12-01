@@ -283,10 +283,10 @@ loader.load('models/barco/barco.gltf', (gltfScene) => {
     }
   });
   boatVisual.scale.set(1.1, 1.1, 1.2);
-  boatVisual.position.set(0, 0.5, 0);
+  boatVisual.position.set(0, 0.5, 10);
 
   // HITBOX
-  const hitboxSize = new THREE.Vector3(40, 40, 200);
+  const hitboxSize = new THREE.Vector3(50, 40, 250);
   const hitboxGeometry = new THREE.BoxGeometry(hitboxSize.x, hitboxSize.y, hitboxSize.z);
   const hitboxMaterial = new THREE.MeshBasicMaterial({
     color: 0x00ff00,
@@ -303,7 +303,7 @@ loader.load('models/barco/barco.gltf', (gltfScene) => {
   boatContainer.add(boatHitbox);
   boatContainer.add(boatVisual);
 
-  boatContainer.position.set(0, 0.5, 0);
+  boatContainer.position.set(0, 0.5, 10);
 
   boat = boatContainer;
   lastBoatPosition.copy(boat.position);
@@ -333,7 +333,7 @@ framePaths.forEach((path, i) => {
     frame.visible = false;
 
     frame.scale.set(80, 80, 120);
-    frame.position.set(0, -10, 47);
+    frame.position.set(0, -10, 57);
 
     waveFrames[i] = frame;
     waveFrameContainer.add(frame);
@@ -359,7 +359,7 @@ backFramePaths.forEach((path, i) => {
     frame.visible = false;
 
     frame.scale.set(60, 60, 120);
-    frame.position.set(0, -3, 250);
+    frame.position.set(0, -3, 260);
 
     backWaveFrames[i] = frame;
     backWaveFrameContainer.add(frame);
