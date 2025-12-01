@@ -282,11 +282,12 @@ loader.load('models/barco/barco.gltf', (gltfScene) => {
       console.log(child.material);
     }
   });
-  boatVisual.scale.set(1.1, 1.1, 1.2);
-  boatVisual.position.set(0, 0.5, 10);
+  boatVisual.scale.set(1.2, 0.1, 1.2);
+  boatVisual.position.set(0, 2, 10);
+  boatVisual.rotation.z = 600;
 
   // HITBOX
-  const hitboxSize = new THREE.Vector3(50, 40, 250);
+  const hitboxSize = new THREE.Vector3(50, 400, 250);
   const hitboxGeometry = new THREE.BoxGeometry(hitboxSize.x, hitboxSize.y, hitboxSize.z);
   const hitboxMaterial = new THREE.MeshBasicMaterial({
     color: 0x00ff00,
@@ -571,9 +572,8 @@ const infoPanelTop = document.getElementById('infoPanelTop');
 
 let panelOpen = false;
 const panelTopData = {
-  title: "Descripción General",
-  subtitle: "Lancha Patrullera Voxel (LPV): El Centro de Mando Móvil.",
-  info: "Diseñada y construida en Colombia, la LPV combina un casco de alta resistencia con la superioridad tecnológica. Equipada con radar de vigilancia avanzada y sistemas de comunicaciones seguras, esta plataforma ofrece el mando y control (C2) decisivo para operaciones rápidas en cualquier entorno acuático. Precisión Voxel, Poder Colombiano."
+  title: "Lancha Patrullera Voxel (LPV): El Centro de Mando Móvil.",
+  subtitle: "Diseñada y construida en Colombia, la LPV combina un casco de alta resistencia con la superioridad tecnológica. Equipada con radar de vigilancia avanzada y sistemas de comunicaciones seguras, esta plataforma ofrece el mando y control (C2) decisivo para operaciones rápidas en cualquier entorno acuático. Precisión Voxel, Poder Colombiano."
 };
 
 function updateTopPanelContent() {
@@ -581,7 +581,7 @@ function updateTopPanelContent() {
   const textEl = document.getElementById("infoTextTop");
 
   titleEl.textContent = panelTopData.title;
-  textEl.innerHTML = `<strong>${panelTopData.subtitle}</strong><br><br>${panelTopData.info}`;
+  textEl.innerHTML = `<strong>${panelTopData.subtitle}</strong>`;
 }
 
 // Abrir/Cerrar toggle
