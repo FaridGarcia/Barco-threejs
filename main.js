@@ -8,15 +8,14 @@ const bubbleInfo = [
   { title: "Capacidades", data: [ { subtitle: "Tripulación", value: "20" }, { subtitle: "Pasajeros", value: "50" }, { subtitle: "Capacidad de Carga", value: "500 toneladas" } ] },
   { title: "Propulsión", data: [ { subtitle: "Motores Principales", value: "2 x Motores Diésel" }, { subtitle: "Hélices", value: "2 x Hélices de Paso Controlable" } ] },
   { title: "Sistema Eléctrico", data: [ { subtitle: "Generadores", value: "2 x Generadores Diésel" }, { subtitle: "Suministro de energía", value: "440V /60Hz" } ] },
-  { title: "Navegación y Comunicación", data: [ { subtitle: "Radar", value: "Sistema de Radar Avanzado" }, { subtitle: "GPS", value: "Sistema GPS Dual" }, { subtitle: "Sistemas de comunicación", value: "Comunicación Satelital" } ] },
-  { title: "Descripción General", data: [ { subtitle: "Lancha Patrullera Voxel (LPV): El Centro de Mando Móvil.", value: "Diseñada y construida en Colombia, la LPV combina un casco de alta resistencia con la superioridad tecnológica. Equipada con radar de vigilancia avanzada y sistemas de comunicaciones seguras, esta plataforma ofrece el mando y control (C2) decisivo para operaciones rápidas en cualquier entorno acuático. Precisión Voxel, Poder Colombiano." } ] },
+  { title: "Navegación y Comunicación", data: [ { subtitle: "Radar", value: "Sistema de Radar Avanzado" }, { subtitle: "GPS", value: "Sistema GPS Dual" }, { subtitle: "Sistemas de comunicación", value: "Comunicación Satelital" } ] }
 ];
 
 // Escena, cámara, renderer
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 10000);
-camera.position.set(0, 60, 200);
+camera.position.set(0, 200, 0);
 camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -27,25 +26,18 @@ renderer.domElement.style.touchAction = "none";
 // --- Audio ---
 const listener = new THREE.AudioListener();
 camera.add(listener);
-
 const audioLoader = new THREE.AudioLoader();
 
 // Sonidos
-const oceanSound = new THREE.Audio(listener);
 const boatSound = new THREE.Audio(listener);
 const openSound = new THREE.Audio(listener);
 const closeSound = new THREE.Audio(listener);
-
-audioLoader.load('sounds/ocean.mp3', buffer => {
-  oceanSound.setBuffer(buffer);
-  oceanSound.setLoop(true);
-  oceanSound.setVolume(0.4);
-});
+const motorSound = new THREE.Audio(listener);
 
 audioLoader.load('sounds/boat.mp3', buffer => {
   boatSound.setBuffer(buffer);
   boatSound.setLoop(true);
-  boatSound.setVolume(0.7);
+  boatSound.setVolume(0.5);
 });
 
 audioLoader.load('sounds/open.mp3', buffer => {
@@ -60,18 +52,27 @@ audioLoader.load('sounds/close.mp3', buffer => {
   closeSound.setVolume(1.0);
 });
 
+audioLoader.load('sounds/motor.mp3', buffer => {
+  motorSound.setBuffer(buffer);
+  motorSound.setLoop(true);
+  motorSound.setVolume(1.0);
+});
+
 let audioStarted = false;
 renderer.domElement.addEventListener("click", () => {
   if (!audioStarted) {
     audioStarted = true;
-    if (oceanSound.buffer) oceanSound.play();
+    motorSound.play();
+    boatSound.play();
   }
 });
 
-
 // boton mute
+const muteBtn = document.getElementById("muteBtn");
+const muteVideo = document.getElementById("muteVideo");
+muteVideo.src = "videos/botones/sound.webm";
 let isMuted = false;
-const allSounds = [oceanSound, boatSound, openSound, closeSound];
+const allSounds = [boatSound, openSound, closeSound, motorSound];
 
 function applyMuteState() {
   allSounds.forEach(s => {
@@ -80,16 +81,13 @@ function applyMuteState() {
     if (isMuted) {
       s.setVolume(0);
     } else {
-      if (s === oceanSound) s.setVolume(0.4);
-      if (s === boatSound) s.setVolume(0.7);
+      if (s === boatSound) s.setVolume(0.5);
       if (s === openSound) s.setVolume(1.0);
       if (s === closeSound) s.setVolume(1.0);
+      if (s === motorSound) s.setVolume(1.0);
     }
   });
 }
-const muteBtn = document.getElementById("muteBtn");
-const muteVideo = document.getElementById("muteVideo");
-muteVideo.src = "videos/botones/sound.webm";
 
 muteBtn.addEventListener("click", () => {
   isMuted = !isMuted;
@@ -120,92 +118,93 @@ skyUniforms["mieDirectionalG"].value = 0.1;
 const sun = new THREE.Vector3();
 
 // Agua 
-
 const waterVertexShader = `
-    uniform float uTime;
-    varying vec3 vNormal;
-    varying vec3 vPos;
+  uniform float uTime;
+  varying vec3 vNormal;
+  varying vec3 vPos;
 
-    float hash(vec2 p) {
-        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+  }
+
+  float fbm(vec2 p) {
+    float f = 0.0;
+    float amp = 0.5;
+    for (int i = 0; i < 5; i++) {
+        f += amp * sin(p.x * 2.0 + uTime * 1.5) * sin(p.y * 2.0 - uTime * 2.0);
+        p *= 1.9;
+        amp *= 0.45;
     }
+    return f;
+  }
 
-    float fbm(vec2 p) {
-        float f = 0.0;
-        float amp = 0.5;
-        for (int i = 0; i < 5; i++) {
-            f += amp * sin(p.x * 2.0 + uTime * 1.5) * sin(p.y * 2.0 - uTime * 2.0);
-            p *= 1.9;
-            amp *= 0.45;
-        }
-        return f;
-    }
+  void main() {
+    vNormal = normal;
+    vec3 pos = position;
 
-    void main() {
-        vNormal = normal;
-        vec3 pos = position;
+    float t = uTime * 1.8;  // velocidad aumentada
 
-        float t = uTime * 1.8;  // velocidad aumentada
+    pos.z += sin(pos.x * 0.25 + t * 6.5) * 0.025;
+    pos.z += sin(pos.y * 0.32 + t * 3.0) * 0.025;
 
-        pos.z += sin(pos.x * 0.25 + t * 6.5) * 0.025;
-        pos.z += sin(pos.y * 0.32 + t * 3.0) * 0.025;
+    pos.z += sin((pos.x + pos.y) * 0.18 + t * 2.0) * 0.035;
+    pos.z += sin((pos.x - pos.y) * 0.20 + t * 2.3) * 0.03;
 
-        pos.z += sin((pos.x + pos.y) * 0.18 + t * 2.0) * 0.035;
-        pos.z += sin((pos.x - pos.y) * 0.20 + t * 2.3) * 0.03;
+    pos.z += sin(pos.x * 1.8 + pos.y * 2.0 + t * 8.0) * 0.012;
 
-        pos.z += sin(pos.x * 1.8 + pos.y * 2.0 + t * 8.0) * 0.012;
+    pos.z += sin(pos.x * 0.05 + t * 13.0) * 0.045;
+    pos.z += sin(pos.y * 0.04 + t * 0.35) * 0.04;
 
-        pos.z += sin(pos.x * 0.05 + t * 13.0) * 0.045;
-        pos.z += sin(pos.y * 0.04 + t * 0.35) * 0.04;
+    float noiseWaves = fbm(pos.xy * 0.55 + t * 0.12) * 0.14;
 
-        float noiseWaves = fbm(pos.xy * 0.55 + t * 0.12) * 0.14;
+    pos.z += noiseWaves;
 
-        pos.z += noiseWaves;
+    vPos = pos;
 
-        vPos = pos;
-
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-    }
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+  }
 `;
 
-
 const waterFragmentShader = `
-    uniform float uTime;
-    uniform vec3 uDeepColor;
-    uniform vec3 uShallowColor;
-    uniform float uOpacity;
+  uniform float uTime;
+  uniform vec3 uDeepColor;
+  uniform vec3 uShallowColor;
+  uniform float uOpacity;
 
-    varying vec3 vNormal;
-    varying vec3 vPos;
+  varying vec3 vNormal;
+  varying vec3 vPos;
 
-    void main() {
-        float fresnel = pow(1.0 - dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 3.0);
+  void main() {
+    float fresnel = pow(1.0 - dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 3.0);
 
-        float depthMix = smoothstep(-2.0, 1.0, vPos.z);
-        vec3 color = mix(uDeepColor, uShallowColor, depthMix);
+    float depthMix = smoothstep(-2.0, 1.0, vPos.z);
+    vec3 color = mix(uDeepColor, uShallowColor, depthMix);
 
-        color += fresnel * 0.2;
-        float shade = dot(normalize(vNormal), vec3(0.3, 0.5, 1.0));
-        shade = clamp(shade, 0.2, 1.0);
+    color += fresnel * 0.2;
+    float shade = dot(normalize(vNormal), vec3(0.3, 0.5, 1.0));
+    shade = clamp(shade, 0.2, 1.0);
 
-        color *= shade * 0.9;
+    color *= shade * 0.9;
 
-        color += sin(uTime * 0.2 + vPos.x * 0.03) * 0.02;
+    color += sin(uTime * 0.2 + vPos.x * 0.03) * 0.02;
 
-        gl_FragColor = vec4(color, uOpacity);
-    }
+    gl_FragColor = vec4(color, uOpacity);
+  }
 `;
 
 const waterMaterial = new THREE.ShaderMaterial({
-    vertexShader: waterVertexShader,
-    fragmentShader: waterFragmentShader,
-    transparent: true,
-    uniforms: {
-        uTime: { value: 0 },
-        uDeepColor: { value: new THREE.Color("#00101f") },
-        uShallowColor: { value: new THREE.Color("#046c8b") },
-        uOpacity: { value: 1.0 }
-    }
+  vertexShader: waterVertexShader,
+  fragmentShader: waterFragmentShader,
+  transparent: true,
+  depthWrite: false,
+  depthTest: true,
+  side: THREE.DoubleSide,
+  uniforms: {
+      uTime: { value: 0 },
+      uDeepColor: { value: new THREE.Color("#00101f") },
+      uShallowColor: { value: new THREE.Color("#046c8b") },
+      uOpacity: { value: 0.9 }
+  }
 });
 
 const waterGeometry = new THREE.PlaneGeometry(12000, 12000, 256, 256);
@@ -256,12 +255,6 @@ let backWaveFrameContainer;
 let backWaveFrameSpeed = 5; // FPS
 let backWaveFrameTimer = 0;
 let backWaveDirection = 1;
-
-// movimiento / cámara / modos
-let targetBoatPos = null;
-let targetCameraPos = null;
-let cinematicMode = false;
-let inDetailsMode = false;
 
 // Burbujas
 let bubbles = [];
@@ -317,6 +310,8 @@ loader.load('models/barco/barco.gltf', (gltfScene) => {
 
   scene.add(boatContainer);
 
+  spawnBubbles();
+
 }, undefined, function (error) {
   console.error('Error al cargar el modelo:', error);
 });
@@ -339,7 +334,7 @@ framePaths.forEach((path, i) => {
     frame.visible = false;
 
     frame.scale.set(80, 80, 120);
-    frame.position.set(0, -10, 42);
+    frame.position.set(0, -10, 47);
 
     waveFrames[i] = frame;
     waveFrameContainer.add(frame);
@@ -364,9 +359,8 @@ backFramePaths.forEach((path, i) => {
     const frame = gltf.scene;
     frame.visible = false;
 
-    // Usa los valores que tú tenías antes
     frame.scale.set(60, 60, 120);
-    frame.position.set(0, -3, 260);
+    frame.position.set(0, -3, 250);
 
     backWaveFrames[i] = frame;
     backWaveFrameContainer.add(frame);
@@ -377,7 +371,6 @@ backFramePaths.forEach((path, i) => {
 // Interacciones: pointerdown / move / up
 // El raycast para arrastrar se hace contra el modelo visual para facilidad
 renderer.domElement.addEventListener('pointerdown', (event) => {
-  if (cinematicMode) return;
   if (event.button !== undefined && event.button !== 0) return;
 
   const ndc = getMouseNDC(event);
@@ -391,15 +384,11 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
     offset.copy(intersects[0].point).sub(boat.position);
 
     try { renderer.domElement.setPointerCapture(event.pointerId); } catch (e) {}
-
-    if (boatSound.buffer && !boatSound.isPlaying) {
-      boatSound.play();
-    }
   }
 });
 
 renderer.domElement.addEventListener('pointermove', (event) => {
-  if (cinematicMode || !isDragging) return;
+  if (!isDragging) return;
 
   const ndc = getMouseNDC(event);
   mouse.x = ndc.x; mouse.y = ndc.y;
@@ -422,14 +411,6 @@ renderer.domElement.addEventListener('pointermove', (event) => {
       boat.rotation.y += delta * rotationSpeed;
     }
 
-    // limitar posición si estás en modo detalles
-    if (inDetailsMode) {
-      const limitX = 170;
-      const limitZ = 100;
-      boat.position.x = THREE.MathUtils.clamp(boat.position.x, -limitX, limitX);
-      boat.position.z = THREE.MathUtils.clamp(boat.position.z, -limitZ, limitZ);
-    }
-
     lastBoatPosition.copy(boat.position);
   }
 });
@@ -438,58 +419,14 @@ renderer.domElement.addEventListener('pointerup', (event) => {
   if (isDragging) {
     isDragging = false;
     try { renderer.domElement.releasePointerCapture(event.pointerId); } catch (e) {}
-    if (boatSound.isPlaying) boatSound.stop();
   }
 });
 
 renderer.domElement.addEventListener('pointercancel', () => { isDragging = false; });
 
-// Botón Detalles 
-const detailsBtn = document.getElementById('detailsBtn');
-detailsBtn.addEventListener('click', () => {
-  if (!boat || cinematicMode) return;
-
-  const DETAILS_CAMERA_POS = new THREE.Vector3(0, 200, 0);
-  const DEFAULT_CAMERA_POS = new THREE.Vector3(0, 60, 200);
-  const CENTER_BOAT_POS = new THREE.Vector3(0, 2, 0);
-
-  if (!inDetailsMode) {
-    targetBoatPos = CENTER_BOAT_POS.clone();
-    targetCameraPos = DETAILS_CAMERA_POS.clone();
-    cinematicMode = true;
-    isDragging = false;
-    inDetailsMode = true;
-    detailsBtn.innerHTML =`<video src="videos/botones/botonVolver.webm" autoplay loop muted></video>`;
-    detailsBtn.classList.add("returnMode");
-    if (boat.userData && boat.userData.velocity) boat.userData.velocity.set(0,0,0);
-  } else {
-    cinematicMode = true;
-    targetCameraPos = DEFAULT_CAMERA_POS.clone();
-    targetBoatPos = null;
-    inDetailsMode = false;
-    detailsBtn.textContent = 'Detalles';
-    detailsBtn.classList.remove("returnMode");
-
-    // limpiar burbujas
-    bubbles.forEach(b => {
-      if (b.userData && b.userData.sprite) scene.remove(b.userData.sprite);
-      if (b.geometry) b.geometry.dispose();
-      if (b.material) b.material.dispose();
-      scene.remove(b);
-    });
-    bubbles.length = 0;
-  }
-});
 
 // Burbujas 
 function spawnBubbles() {
-  // limpiar
-  bubbles.forEach(b => {
-    if (b.userData && b.userData.sprite) scene.remove(b.userData.sprite);
-    scene.remove(b);
-  });
-  bubbles = [];
-
   const bubbleCount = 6;
   const bubbleRadius = 20;
   const minDistance = bubbleRadius * 2.5;
@@ -515,9 +452,9 @@ function spawnBubbles() {
       attempts++;
       const geometry = new THREE.SphereGeometry(bubbleRadius, 32, 32);
       const material = new THREE.MeshPhysicalMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.0,
+        color: 0x046c8b,
+        transparent: false,
+        opacity: 1,
         roughness: 0.05,
         metalness: 0.2,
         transmission: 1.0,
@@ -577,6 +514,9 @@ function spawnBubbles() {
       const growSpeed = 0.02 + Math.random() * 0.01;
       bubble.userData.growing = { progress: 0, speed: growSpeed, target: targetScale };
     }
+
+    bubble.renderOrder = 999;
+    bubble.userData.sprite.renderOrder = 1000;
   }
 }
 
@@ -625,6 +565,41 @@ function typeLinesIntoGrid(data, speed = 16, delay = 150) {
   typeNextLine();
 }
 
+// Info Panel Top
+const topToggle = document.getElementById('topToggle');
+const topArrow = document.getElementById('topArrow');
+const infoPanelTop = document.getElementById('infoPanelTop');
+
+let panelOpen = false;
+const panelTopData = {
+  title: "Descripción General",
+  subtitle: "Lancha Patrullera Voxel (LPV): El Centro de Mando Móvil.",
+  info: "Diseñada y construida en Colombia, la LPV combina un casco de alta resistencia con la superioridad tecnológica. Equipada con radar de vigilancia avanzada y sistemas de comunicaciones seguras, esta plataforma ofrece el mando y control (C2) decisivo para operaciones rápidas en cualquier entorno acuático. Precisión Voxel, Poder Colombiano."
+};
+
+function updateTopPanelContent() {
+  const titleEl = document.getElementById("infoTitleTop");
+  const textEl = document.getElementById("infoTextTop");
+
+  titleEl.textContent = panelTopData.title;
+  textEl.innerHTML = `<strong>${panelTopData.subtitle}</strong><br><br>${panelTopData.info}`;
+}
+
+// Abrir/Cerrar toggle
+topToggle.addEventListener('click', () => {
+  panelOpen = !panelOpen;
+  if (panelOpen) {
+    infoPanelTop.classList.add('visible');
+    topArrow.classList.add('open');
+    updateTopPanelContent();
+    if (openSound.buffer) openSound.play();
+  } else {
+    infoPanelTop.classList.remove('visible');
+    topArrow.classList.remove('open');
+    if (closeSound.buffer) closeSound.play();
+  }
+});
+
 function onBubbleClick(bubble, index) {
   const info = bubbleInfo[index];
   if (!info) return;
@@ -657,13 +632,6 @@ closePanelBtn.addEventListener('click', (e) => {
    infoPanel.classList.remove('visible'); 
    if (closeSound.buffer) closeSound.play();
   });
-detailsBtn.addEventListener('click', () => {
-  if (infoPanel.classList.contains('visible')) {
-    stopTyping();
-    infoPanel.classList.remove('visible');
-    detailsBtn.textContent = 'Detalles';
-  }
-});
 
 // click sobre burbujas
 renderer.domElement.addEventListener('click', (event) => {
@@ -687,86 +655,84 @@ renderer.domElement.addEventListener("touchend", onTouchEnd);
 renderer.domElement.addEventListener("touchcancel", onTouchEnd);
 
 function onTouchUpdate(event) {
-    event.preventDefault();
+  event.preventDefault();
 
-    touchPoints = {};
+  touchPoints = {};
 
-    for (let t of event.touches) {
-        touchPoints[t.identifier] = {
-            x: t.clientX,
-            y: t.clientY
-        };
-    }
+  for (let t of event.touches) {
+    touchPoints[t.identifier] = {
+        x: t.clientX,
+        y: t.clientY
+    };
+  }
 
-    if (Object.keys(touchPoints).length === 3) {
-        updateBoatFromTouches();
-    }
+  if (Object.keys(touchPoints).length === 3) {
+      updateBoatFromTouches();
+  }
 }
 
 function onTouchEnd(event) {
-    for (let t of event.changedTouches) {
-        delete touchPoints[t.identifier];
-    }
+  for (let t of event.changedTouches) {
+    delete touchPoints[t.identifier];
+  }
 }
 
 function updateBoatFromTouches() {
-    const keys = Object.keys(touchPoints);
-    if (keys.length !== 3) return;
+  const keys = Object.keys(touchPoints);
+  if (keys.length !== 3) return;
 
-    const p = keys.map(k => touchPoints[k]);
-    const world = p.map(pt => screenToWorld(pt.x, pt.y));
+  const p = keys.map(k => touchPoints[k]);
+  const world = p.map(pt => screenToWorld(pt.x, pt.y));
 
-    const center = new THREE.Vector3(
-        (world[0].x + world[1].x + world[2].x) / 3,
-        2,
-        (world[0].z + world[1].z + world[2].z) / 3
-    );
+  const center = new THREE.Vector3(
+    (world[0].x + world[1].x + world[2].x) / 3,
+    2,
+    (world[0].z + world[1].z + world[2].z) / 3
+  );
 
-    const centroid = center.clone();
-    let frontIndex = 0;
-    let maxDist = 0;
+  const centroid = center.clone();
+  let frontIndex = 0;
+  let maxDist = 0;
 
-    for (let i = 0; i < 3; i++) {
-        const d = world[i].distanceTo(centroid);
-        if (d > maxDist) {
-            maxDist = d;
-            frontIndex = i;
-        }
+  for (let i = 0; i < 3; i++) {
+    const d = world[i].distanceTo(centroid);
+    if (d > maxDist) {
+        maxDist = d;
+        frontIndex = i;
     }
+  }
 
-    const front = world[frontIndex];
-    const back1 = world[(frontIndex + 1) % 3];
-    const back2 = world[(frontIndex + 2) % 3];
+  const front = world[frontIndex];
+  const back1 = world[(frontIndex + 1) % 3];
+  const back2 = world[(frontIndex + 2) % 3];
 
-    const backCenter = new THREE.Vector3(
-        (back1.x + back2.x) / 2,
-        2,
-        (back1.z + back2.z) / 2
-    );
+  const backCenter = new THREE.Vector3(
+    (back1.x + back2.x) / 2,
+    2,
+    (back1.z + back2.z) / 2
+  );
 
-    const direction = new THREE.Vector3().subVectors(front, backCenter);
+  const direction = new THREE.Vector3().subVectors(front, backCenter);
 
-    const angle = Math.atan2(direction.x, direction.z);
+  const angle = Math.atan2(direction.x, direction.z);
 
-    if (boat) {
-        boat.position.lerp(center, 0.25);
-        boat.rotation.y = angle;
-    }
+  if (boat) {
+    boat.position.lerp(center, 0.25);
+    boat.rotation.y = angle;
+  }
 }
 
 function screenToWorld(x, y) {
-    const rect = renderer.domElement.getBoundingClientRect();
-    const ndc = new THREE.Vector2(
-        ((x - rect.left) / rect.width) * 2 - 1,
-        -((y - rect.top) / rect.height) * 2 + 1
-    );
+  const rect = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((x - rect.left) / rect.width) * 2 - 1,
+    -((y - rect.top) / rect.height) * 2 + 1
+  );
 
-    raycaster.setFromCamera(ndc, camera);
-    const hits = raycaster.intersectObject(water);
-    return hits.length > 0 ? hits[0].point.clone() : new THREE.Vector3();
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObject(water);
+  return hits.length > 0 ? hits[0].point.clone() : new THREE.Vector3();
 }
-
-
 
 
 // Animación principal
@@ -781,7 +747,6 @@ function animate() {
   }
 
   //animar olas
-  // ---- Animación por frames ----
  if (waveFrames.length === framePaths.length) {
 
   waveFrameTimer += deltaTime;
@@ -804,7 +769,7 @@ function animate() {
     waveFrames[currentWaveIndex].visible = true;
   }
 
-  // ---- Animación backWave por frames ----
+  //  Animacion olas traseras por frames 
 if (backWaveFrames.length === backFramePaths.length) {
 
   backWaveFrameTimer += deltaTime;
@@ -828,7 +793,6 @@ if (backWaveFrames.length === backFramePaths.length) {
     backWaveFrames[currentBackWaveIndex].visible = true;
   }
 }
-
 
   // Hacer que el frame delantero siga al barco
   if (boat) {
@@ -856,40 +820,6 @@ if (backWaveFrames.length === backFramePaths.length) {
     backWaveFrameContainer.rotation.y = boat.rotation.y;
    }
 }
-
-
-  // mover bote hacia el centro
-  if (boat && targetBoatPos) {
-    boat.position.lerp(targetBoatPos, 0.05);
-    if (boat.position.distanceTo(targetBoatPos) < 0.05) {
-      boat.position.copy(targetBoatPos);
-      targetBoatPos = null;
-    }
-  }
-
-  // mover cámara
-  if (targetCameraPos) {
-    camera.position.lerp(targetCameraPos, 0.06);
-    camera.lookAt(0, 0, 0);
-    if (camera.position.distanceTo(targetCameraPos) < 0.5) {
-      targetCameraPos = null;
-      if (cinematicMode) {
-        if (inDetailsMode) {
-          // FORZAMOS la posición del barco al centro
-          if (boat) {
-            boat.position.set(0, 2, 0);
-            if (!boat.userData) boat.userData = {};
-            if (boat.userData.velocity) boat.userData.velocity.set(0,0,0);
-            lastBoatPosition.copy(boat.position);
-          }
-          spawnBubbles();
-        } else {
-          camera.lookAt(0, 0, 0);
-        }
-        cinematicMode = false;
-      }
-    }
-  }
 
   // Animación de aparición y flotación de las burbujas
   bubbles.forEach(bubble => {

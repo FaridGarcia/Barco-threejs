@@ -11,7 +11,6 @@
 <body>
 
     <div id="infoPanel" class="hidden">
-
         <div class="panelOverlay panel-top">
             <canvas id="mapCanvas"></canvas>
         </div>
@@ -19,16 +18,34 @@
         <button id="closePanelBtn">✕</button>
         <div id="infoContent">
             <h2 id="infoTitle">Título de la burbuja</h2>
-            <p id="infoText">Aquí va la información relacionada con esta burbuja.</p>
+            <p id="infoText">Información relacionada con esta burbuja.</p>
         </div>
 
         <div class="panelOverlay panel-bottom">
             <canvas id="hudCanvas"></canvas>
         </div>
-
     </div>
+
+
+    <div id="topToggle">
+        <div id="topArrow">▼</div>
+    </div>
+    <div id="infoPanelTop" class="hidden">
+        <div class="panelOverlay panel-top">
+            <canvas id="mapCanvasTop"></canvas>
+        </div>
+
+        <div id="infoContentTop">
+            <h2 id="infoTitleTop">Detalles del barco</h2>
+            <p id="infoTextTop">Información adicional del botón Detalles.</p>
+        </div>
+
+        <div class="panelOverlay panel-bottom">
+            <canvas id="hudCanvasTop"></canvas>
+        </div>
+    </div>
+
     <script type="module" src="/main.js"></script>
-    <button id="detailsBtn">Detalles</button>
     <button id="muteBtn">
         <video id="muteVideo" autoplay loop muted playsinline></video>
     </button>

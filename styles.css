@@ -8,12 +8,14 @@ canvas {
   transition: transform 0.4s ease;
 }
 
+
+/* PANEL AL DARLE CLICK A LAS BURBUJAS*/
 #infoPanel {
   position: fixed;
   bottom: 0;
   left: 0;
   width: 50%;
-  height: 20%;
+  height: 25%;
   background: #223344d9;
   color: #aee7ff;
   box-shadow: 0 0 20px rgba(0, 200, 255, 0.2);
@@ -40,7 +42,7 @@ canvas {
 
 #infoPanel h2 {
   margin-top: 10px 0 auto;
-  font-size: 1rem;
+  font-size: 1.2rem;
   max-width: 60%;
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -54,7 +56,7 @@ canvas {
 
 #infoPanel p {
   line-height: 2;
-  font-size: 0.8rem;
+  font-size: 1rem;
   margin: 12px 0;
   color: #aee7ff;
   border-left: 2px solid rgba(0, 180, 255, 0.3);
@@ -65,7 +67,7 @@ canvas {
 .infoGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px 100px;
+  gap: 6px 70px;
   margin-top: 8px;
   width: max-content;
   margin-left: auto; 
@@ -150,47 +152,95 @@ canvas {
   align-items: center;
 }
 
-#detailsBtn {
+/* PANEL AL DARLE CLICK AL BOTON DETALLES*/
+#topToggle {
   position: fixed;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 2%;        
+  background: #0b3050aa;
+  border-radius: 0 0 10px 10px;
+  border: 1px solid rgba(0, 200, 255, 0.4);
+  border-top: none;
   z-index: 9999;
-  pointer-events: auto;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 24px;
-  font-size: 30px;
-  font-weight: bold;
-  background-color: #0b3050;
-  color: rgb(195, 197, 241);
-  border: none;
-  border-radius: 8px;
   cursor: pointer;
-  transition: background 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-#detailsBtn:hover {
-  background-color: #1565c0;
+#topArrow {
+  font-size: 20px;
+  color: #aee7ff;
+  transition: transform 0.35s ease;
 }
 
-#detailsBtn.returnMode {
+#topToggle:hover {
+  background: #1565c099;
+}
+
+#topArrow.open {
+  transform: rotate(180deg);
+}
+
+
+#infoPanelTop {
   position: fixed;
-  top: 20px;
-  left: 20px;
-  bottom: unset;
-  transform: none;
-  padding: 0;
-  width: 70px;
-  height: 70px;
-  background: none; 
-  border: none;
-  cursor: pointer;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 30%;
+  background: #223344d9;
+  color: #aee7ff;
+  box-shadow: 0 0 20px rgba(0, 200, 255, 0.2);
+  border-bottom: 2px solid #00b4ff66;
+  transform: translateY(-100%);
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 40px 25px;
+  z-index: 11;
+  background-image:
+    linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
 }
 
-#detailsBtn.returnMode video {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  pointer-events: none;
+#infoPanelTop.visible {
+  transform: translateY(0);
+}
+
+#infoPanelTop h2,
+#infoPanelTop p {
+  all: unset;
+  display: block;
+  color: #aee7ff;
+  font-family: 'Orbitron', sans-serif;
+}
+
+#infoPanelTop h2 {
+  margin-top: 10px;
+  font-size: 1.2rem;
+  background: rgba(0, 120, 255, 0.15);
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 200, 255, 0.4);
+  border-radius: 6px;
+  text-align: center;
+  color: #c8f3ff;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+#infoPanelTop p {
+  margin: 12px 0;
+  line-height: 2;
+  width: 80%;
+  border-left: 2px solid rgba(0, 180, 255, 0.3);
+  padding-left: 10px;
 }
 
 #muteBtn {
