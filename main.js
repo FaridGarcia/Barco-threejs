@@ -631,19 +631,24 @@ closePanelBtn.addEventListener('click', (e) => {
    infoPanel.classList.remove('visible'); 
    if (closeSound.buffer) closeSound.play();
   });
-
+  
 // click sobre burbujas
-renderer.domElement.addEventListener('click', (event) => {
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  if (isDragging) return;
+
   const rect = renderer.domElement.getBoundingClientRect();
-  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+ 
+  mouse.set(x, y);
   raycaster.setFromCamera(mouse, camera);
+
   const intersects = raycaster.intersectObjects(bubbles, true);
   if (intersects.length > 0) {
-    let clicked = intersects[0].object;
-    while (clicked && !bubbles.includes(clicked)) clicked = clicked.parent;
-    const index = bubbles.indexOf(clicked);
-    if (index >= 0) onBubbleClick(clicked, index);
+    let obj = intersects[0].object;
+    while (obj && !bubbles.includes(obj)) obj = obj.parent;
+    const index = bubbles.indexOf(obj);
+    if (index >= 0) onBubbleClick(obj, index);
   }
 });
 
