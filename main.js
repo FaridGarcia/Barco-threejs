@@ -309,7 +309,6 @@ loader.load('models/barco/barco.gltf', (gltfScene) => {
   lastBoatPosition.copy(boat.position);
 
   scene.add(boatContainer);
-
   spawnBubbles();
 
 }, undefined, function (error) {
@@ -678,49 +677,60 @@ function onTouchEnd(event) {
 }
 
 function updateBoatFromTouches() {
-  const keys = Object.keys(touchPoints);
-  if (keys.length !== 3) return;
+    const keys = Object.keys(touchPoints);
+    if (keys.length !== 3) return;
 
-  const p = keys.map(k => touchPoints[k]);
-  const world = p.map(pt => screenToWorld(pt.x, pt.y));
+    const p = keys.map(k => touchPoints[k]);
+    const world = p.map(pt => screenToWorld(pt.x, pt.y));
+    const center = new THREE.Vector3(
+        (world[0].x + world[1].x + world[2].x) / 3,
+        2,
+        (world[0].z + world[1].z + world[2].z) / 3
+    );
 
-  const center = new THREE.Vector3(
-    (world[0].x + world[1].x + world[2].x) / 3,
-    2,
-    (world[0].z + world[1].z + world[2].z) / 3
-  );
+    let frontIndex = 0;
+    let maxDist = 0;
 
-  const centroid = center.clone();
-  let frontIndex = 0;
-  let maxDist = 0;
-
-  for (let i = 0; i < 3; i++) {
-    const d = world[i].distanceTo(centroid);
-    if (d > maxDist) {
-        maxDist = d;
-        frontIndex = i;
+    for (let i = 0; i < 3; i++) {
+        const d = world[i].distanceTo(center);
+        if (d > maxDist) {
+            maxDist = d;
+            frontIndex = i;
+        }
     }
-  }
 
-  const front = world[frontIndex];
-  const back1 = world[(frontIndex + 1) % 3];
-  const back2 = world[(frontIndex + 2) % 3];
+    const front = world[frontIndex];
+    const back1 = world[(frontIndex + 1) % 3];
+    const back2 = world[(frontIndex + 2) % 3];
 
-  const backCenter = new THREE.Vector3(
-    (back1.x + back2.x) / 2,
-    2,
-    (back1.z + back2.z) / 2
-  );
+    const physicalBackCenter = new THREE.Vector3(
+        (back1.x + back2.x) / 2,
+        2,
+        (back1.z + back2.z) / 2
+    );
 
-  const direction = new THREE.Vector3().subVectors(front, backCenter);
+    const physicalCenter = new THREE.Vector3(
+        (front.x + physicalBackCenter.x) / 2,
+        2,
+        (front.z + physicalBackCenter.z) / 2
+    );
 
-  const angle = Math.atan2(direction.x, direction.z);
+    boat.position.copy(physicalCenter);
+    const dir = new THREE.Vector3().subVectors(front, physicalBackCenter);
+    const angle = Math.atan2(dir.x, dir.z);
 
-  if (boat) {
-    boat.position.lerp(center, 0.25);
     boat.rotation.y = angle;
-  }
+    const modelFront = new THREE.Vector3(0, 0, 100);
+    const modelBack = new THREE.Vector3(0, 0, -120);
+
+    const modelDir = new THREE.Vector3().subVectors(modelFront, modelBack);
+    const modelAngle = Math.atan2(modelDir.x, modelDir.z);
+
+    const correction = angle - modelAngle;
+
+    boat.rotation.y = correction;
 }
+
 
 function screenToWorld(x, y) {
   const rect = renderer.domElement.getBoundingClientRect();
