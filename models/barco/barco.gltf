@@ -24,8 +24,8 @@
 			],
 			"scale":[
 				0.948697566986084,
-				0.948697566986084,
-				0.948697566986084
+				0.9486975073814392,
+				0.9486975073814392
 			],
 			"translation":[
 				-238.30419921875,
@@ -51,9 +51,9 @@
 			"name":"Material.001",
 			"pbrMetallicRoughness":{
 				"baseColorFactor":[
-					0.2508818507194519,
-					0.2508818507194519,
-					0.2508818507194519,
+					0.03500000014901161,
+					0.12700000405311584,
+					0.0820000022649765,
 					1
 				],
 				"metallicFactor":0,
@@ -81,7 +81,7 @@
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":30191,
+			"count":30296,
 			"max":[
 				270.2935485839844,
 				0,
@@ -97,13 +97,13 @@
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":30191,
+			"count":30296,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":30191,
+			"count":30296,
 			"type":"VEC2"
 		},
 		{
@@ -116,32 +116,32 @@
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":362292,
+			"byteLength":363552,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":362292,
-			"byteOffset":362292,
+			"byteLength":363552,
+			"byteOffset":363552,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":241528,
-			"byteOffset":724584,
+			"byteLength":242368,
+			"byteOffset":727104,
 			"target":34962
 		},
 		{
 			"buffer":0,
 			"byteLength":118692,
-			"byteOffset":966112,
+			"byteOffset":969472,
 			"target":34963
 		}
 	],
 	"buffers":[
 		{
-			"byteLength":1084804,
+			"byteLength":1088164,
 			"uri":"barco.bin"
 		}
 	]
