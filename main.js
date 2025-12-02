@@ -118,52 +118,83 @@ skyUniforms["mieDirectionalG"].value = 0.1;
 const sun = new THREE.Vector3();
 
 // Agua 
+const oceanVideo = document.createElement("video");
+oceanVideo.src = "videos/oceano.webm";
+oceanVideo.loop = true;
+oceanVideo.muted = true;
+oceanVideo.preload = "auto";
+oceanVideo.play();
+
+const oceanTexture = new THREE.VideoTexture(oceanVideo);
+oceanTexture.minFilter = THREE.LinearFilter;
+oceanTexture.magFilter = THREE.LinearFilter;
+oceanTexture.format = THREE.RGBAFormat;
+
+const oceanMaterial = new THREE.MeshBasicMaterial({
+  map: oceanTexture,
+  side: THREE.DoubleSide,
+});
+
+const oceanGeometry = new THREE.PlaneGeometry(600, 400);
+const oceanMesh = new THREE.Mesh(oceanGeometry, oceanMaterial);
+oceanMesh.rotation.x = -Math.PI / 2;
+oceanMesh.position.y = 0;
+scene.add(oceanMesh);
+
 const waterVertexShader = `
-  uniform float uTime;
-  varying vec3 vNormal;
-  varying vec3 vPos;
+uniform float uTime;
+varying vec3 vNormal;
+varying vec3 vPos;
 
-  float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-  }
+// --- Gerstner Wave función ---
+vec3 gerstnerWave(vec2 dir, float steep, float wavelength, float speed, float amplitude, vec3 pos, float time) {
+    float k = 2.0 * 3.14159 / wavelength;
+    float phase = k * dot(dir, pos.xy) + time * speed;
+    float disp = amplitude * sin(phase);
 
-  float fbm(vec2 p) {
+    pos.x += dir.x * (steep * amplitude * cos(phase));
+    pos.y += dir.y * (steep * amplitude * cos(phase));
+    pos.z += disp;
+
+    return pos;
+}
+
+// --- FBM turbulento ---
+float improvedNoise(vec2 p) {
     float f = 0.0;
-    float amp = 0.5;
-    for (int i = 0; i < 5; i++) {
-        f += amp * sin(p.x * 2.0 + uTime * 1.5) * sin(p.y * 2.0 - uTime * 2.0);
-        p *= 1.9;
-        amp *= 0.45;
+    float amp = 0.6;
+    for (int i = 0; i < 6; i++) {
+        f += amp * sin(p.x) * cos(p.y);
+        p *= 2.5;
+        amp *= 0.47;
     }
     return f;
-  }
+}
 
-  void main() {
+void main() {
     vNormal = normal;
     vec3 pos = position;
+    float t = uTime * 1.4;   // 💥 velocidad global aumentada
 
-    float t = uTime * 1.8;  // velocidad aumentada
+    // --- OLAS MÁS GRANDES Y RÁPIDAS ---
+    pos = gerstnerWave(normalize(vec2(1.0, 0.2)), 0.35, 7.0, 1.9, 0.55, pos, t);
+    pos = gerstnerWave(normalize(vec2(-0.6, 1.0)), 0.40, 5.5, 2.2, 0.45, pos, t);
+    pos = gerstnerWave(normalize(vec2(0.5, -1.0)), 0.32, 9.0, 1.8, 0.50, pos, t);
+    pos = gerstnerWave(normalize(vec2(-1.0, -0.4)), 0.30, 12.0, 1.1, 0.35, pos, t);
 
-    pos.z += sin(pos.x * 0.25 + t * 6.5) * 0.025;
-    pos.z += sin(pos.y * 0.32 + t * 3.0) * 0.025;
+    // --- NUEVAS OLAS PEQUEÑAS ---
+    pos = gerstnerWave(normalize(vec2(0.8, -0.3)), 0.25, 3.0, 3.2, 0.18, pos, t);
+    pos = gerstnerWave(normalize(vec2(-0.3, 0.7)), 0.20, 2.5, 2.8, 0.15, pos, t);
 
-    pos.z += sin((pos.x + pos.y) * 0.18 + t * 2.0) * 0.035;
-    pos.z += sin((pos.x - pos.y) * 0.20 + t * 2.3) * 0.03;
-
-    pos.z += sin(pos.x * 1.8 + pos.y * 2.0 + t * 8.0) * 0.012;
-
-    pos.z += sin(pos.x * 0.05 + t * 13.0) * 0.045;
-    pos.z += sin(pos.y * 0.04 + t * 0.35) * 0.04;
-
-    float noiseWaves = fbm(pos.xy * 0.55 + t * 0.12) * 0.14;
-
-    pos.z += noiseWaves;
+    // --- RUIDO TIPO TORMENTA ---
+    float noise = improvedNoise(pos.xy * 0.35 + t * 0.2) * 0.55;  // 💥 ruido más fuerte
+    pos.z += noise;
 
     vPos = pos;
-
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-  }
+}
 `;
+
 
 const waterFragmentShader = `
   uniform float uTime;
@@ -210,7 +241,7 @@ const waterMaterial = new THREE.ShaderMaterial({
 const waterGeometry = new THREE.PlaneGeometry(12000, 12000, 256, 256);
 const water = new THREE.Mesh(waterGeometry, waterMaterial);
 water.rotation.x = -Math.PI / 2;
-scene.add(water);
+//scene.add(water);
 
 
 function updateSun() {
@@ -394,7 +425,7 @@ renderer.domElement.addEventListener('pointermove', (event) => {
   mouse.x = ndc.x; mouse.y = ndc.y;
   raycaster.setFromCamera(mouse, camera);
 
-  const intersects = raycaster.intersectObject(water);
+  const intersects = raycaster.intersectObject(oceanMesh);
   if (intersects.length > 0 && boat) {
     const point = intersects[0].point.clone();
     point.sub(offset);
@@ -433,12 +464,12 @@ function spawnBubbles() {
   const minDistanceFromBoat = bubbleRadius * 3;
 
   const videoPaths = [
-    'videos/dimensiones.webm',
-    'videos/rendimiento.webm',
-    'videos/capacidades.webm',
-    'videos/propulsion.webm',
-    'videos/sistema.webm',
-    'videos/navegacion.webm'
+    'videos/burbujas/dimensiones.webm',
+    'videos/burbujas/rendimiento.webm',
+    'videos/burbujas/capacidades.webm',
+    'videos/burbujas/propulsion.webm',
+    'videos/burbujas/sistema.webm',
+    'videos/burbujas/navegacion.webm'
   ].map(path => `${path}?v=${Date.now()}`);
 
   const buttonHeight = 100;
