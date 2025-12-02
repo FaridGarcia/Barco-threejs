@@ -135,11 +135,11 @@ const oceanMaterial = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide,
 });
 
-const oceanGeometry = new THREE.PlaneGeometry(600, 400);
+const oceanGeometry = new THREE.PlaneGeometry(12000, 12000);
 const oceanMesh = new THREE.Mesh(oceanGeometry, oceanMaterial);
 oceanMesh.rotation.x = -Math.PI / 2;
 oceanMesh.position.y = 0;
-scene.add(oceanMesh);
+//scene.add(oceanMesh);
 
 const waterVertexShader = `
 uniform float uTime;
@@ -238,10 +238,10 @@ const waterMaterial = new THREE.ShaderMaterial({
   }
 });
 
-const waterGeometry = new THREE.PlaneGeometry(12000, 12000, 256, 256);
+const waterGeometry = new THREE.PlaneGeometry(10000, 10000, 256, 256);
 const water = new THREE.Mesh(waterGeometry, waterMaterial);
 water.rotation.x = -Math.PI / 2;
-//scene.add(water);
+scene.add(water);
 
 
 function updateSun() {
@@ -425,7 +425,7 @@ renderer.domElement.addEventListener('pointermove', (event) => {
   mouse.x = ndc.x; mouse.y = ndc.y;
   raycaster.setFromCamera(mouse, camera);
 
-  const intersects = raycaster.intersectObject(oceanMesh);
+  const intersects = raycaster.intersectObject(water);
   if (intersects.length > 0 && boat) {
     const point = intersects[0].point.clone();
     point.sub(offset);
