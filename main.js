@@ -238,7 +238,7 @@ const waterMaterial = new THREE.ShaderMaterial({
   }
 });
 
-const waterGeometry = new THREE.PlaneGeometry(10000, 10000, 256, 256);
+const waterGeometry = new THREE.PlaneGeometry(4000, 4000, 256, 256);
 const water = new THREE.Mesh(waterGeometry, waterMaterial);
 water.rotation.x = -Math.PI / 2;
 scene.add(water);
