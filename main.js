@@ -118,35 +118,11 @@ skyUniforms["mieDirectionalG"].value = 0.1;
 const sun = new THREE.Vector3();
 
 // Agua 
-const oceanVideo = document.createElement("video");
-oceanVideo.src = "videos/oceano.webm";
-oceanVideo.loop = true;
-oceanVideo.muted = true;
-oceanVideo.preload = "auto";
-oceanVideo.play();
-
-const oceanTexture = new THREE.VideoTexture(oceanVideo);
-oceanTexture.minFilter = THREE.LinearFilter;
-oceanTexture.magFilter = THREE.LinearFilter;
-oceanTexture.format = THREE.RGBAFormat;
-
-const oceanMaterial = new THREE.MeshBasicMaterial({
-  map: oceanTexture,
-  side: THREE.DoubleSide,
-});
-
-const oceanGeometry = new THREE.PlaneGeometry(12000, 12000);
-const oceanMesh = new THREE.Mesh(oceanGeometry, oceanMaterial);
-oceanMesh.rotation.x = -Math.PI / 2;
-oceanMesh.position.y = 0;
-//scene.add(oceanMesh);
-
 const waterVertexShader = `
 uniform float uTime;
 varying vec3 vNormal;
 varying vec3 vPos;
 
-// --- Gerstner Wave función ---
 vec3 gerstnerWave(vec2 dir, float steep, float wavelength, float speed, float amplitude, vec3 pos, float time) {
     float k = 2.0 * 3.14159 / wavelength;
     float phase = k * dot(dir, pos.xy) + time * speed;
@@ -174,19 +150,16 @@ float improvedNoise(vec2 p) {
 void main() {
     vNormal = normal;
     vec3 pos = position;
-    float t = uTime * 1.4;   // 💥 velocidad global aumentada
+    float t = uTime * 1.4;
 
-    // --- OLAS MÁS GRANDES Y RÁPIDAS ---
     pos = gerstnerWave(normalize(vec2(1.0, 0.2)), 0.35, 7.0, 1.9, 0.55, pos, t);
     pos = gerstnerWave(normalize(vec2(-0.6, 1.0)), 0.40, 5.5, 2.2, 0.45, pos, t);
     pos = gerstnerWave(normalize(vec2(0.5, -1.0)), 0.32, 9.0, 1.8, 0.50, pos, t);
     pos = gerstnerWave(normalize(vec2(-1.0, -0.4)), 0.30, 12.0, 1.1, 0.35, pos, t);
 
-    // --- NUEVAS OLAS PEQUEÑAS ---
     pos = gerstnerWave(normalize(vec2(0.8, -0.3)), 0.25, 3.0, 3.2, 0.18, pos, t);
     pos = gerstnerWave(normalize(vec2(-0.3, 0.7)), 0.20, 2.5, 2.8, 0.15, pos, t);
 
-    // --- RUIDO TIPO TORMENTA ---
     float noise = improvedNoise(pos.xy * 0.35 + t * 0.2) * 0.55;  // 💥 ruido más fuerte
     pos.z += noise;
 
@@ -194,7 +167,6 @@ void main() {
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
 }
 `;
-
 
 const waterFragmentShader = `
   uniform float uTime;
